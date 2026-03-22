@@ -1,124 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Phone, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Mail, Phone, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { auth } from '../firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 
-declare global {
-  interface Window {
-    recaptchaVerifier: any;
-  }
-}
-
-type Step = 'email' | 'phone' | 'otp' | 'success';
+type Step = 'email' | 'password' | 'phone' | 'success';
 
 export const Register: React.FC = () => {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const recaptchaRef = React.useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    // Cleanup recaptcha on unmount or step change
-    return () => {
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-          window.recaptchaVerifier = undefined;
-        } catch (e) {
-          // Ignore clear errors
-        }
-      }
-    };
-  }, [step]);
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) setStep('phone');
+    if (email) setStep('password');
   };
 
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length >= 6) setStep('phone');
+    else setError('Password must be at least 6 characters.');
+  };
+
+  const handleRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
     if (phone) {
       setLoading(true);
       setError(null);
       try {
-        // Ensure Recaptcha is initialized
-        if (!window.recaptchaVerifier && recaptchaRef.current) {
-          window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaRef.current, {
-            'size': 'invisible'
-          });
-        }
-
-        if (!window.recaptchaVerifier) {
-          throw new Error('Verification system not ready. Please try again.');
-        }
-
-        // Format phone number: remove spaces and leading zero if present
-        const cleanPhone = phone.replace(/\s/g, '').replace(/^0/, '');
-        const fullPhone = `+212${cleanPhone}`;
-        
-        const appVerifier = window.recaptchaVerifier;
-        const confirmation = await signInWithPhoneNumber(auth, fullPhone, appVerifier);
-        setConfirmationResult(confirmation);
+        await createUserWithEmailAndPassword(auth, email, password);
         setLoading(false);
-        setStep('otp');
+        setStep('success');
+        // We'll pass the phone to the next page via state or just let them enter it again if needed
+        // But the CompleteProfile page already expects it in state
       } catch (err: any) {
         console.error('Firebase Auth Error:', err);
         setLoading(false);
         
-        let message = 'Failed to send OTP. Please try again.';
-        if (err.code === 'auth/invalid-phone-number') message = 'Invalid phone number format.';
-        if (err.code === 'auth/too-many-requests') message = 'Too many attempts. Please try again later.';
+        let message = 'Failed to create account. Please try again.';
+        if (err.code === 'auth/email-already-in-use') message = 'This email is already registered.';
+        if (err.code === 'auth/invalid-email') message = 'Invalid email format.';
+        if (err.code === 'auth/weak-password') message = 'Password is too weak.';
         if (err.message) message = err.message;
         
         setError(message);
-        
-        // Reset recaptcha on error
-        if (window.recaptchaVerifier) {
-          try {
-            window.recaptchaVerifier.clear();
-            window.recaptchaVerifier = undefined;
-          } catch (e) {}
-        }
-      }
-    }
-  };
-
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) value = value[value.length - 1];
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`otp-${index + 1}`);
-      nextInput?.focus();
-    }
-  };
-
-  const handleOtpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const otpCode = otp.join('');
-    if (otpCode.length === 6 && confirmationResult) {
-      setLoading(true);
-      setError(null);
-      try {
-        await confirmationResult.confirm(otpCode);
-        setLoading(false);
-        navigate('/complete-profile', { state: { email, phone: `+212${phone.replace(/\s/g, '')}` } });
-      } catch (err: any) {
-        console.error('Verification Error:', err);
-        setLoading(false);
-        setError(err.message || 'Invalid code. Please try again.');
       }
     }
   };
@@ -159,10 +90,10 @@ export const Register: React.FC = () => {
             </form>
           </motion.div>
         );
-      case 'phone':
+      case 'password':
         return (
           <motion.div
-            key="phone"
+            key="password"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
@@ -175,10 +106,56 @@ export const Register: React.FC = () => {
               >
                 <ArrowLeft className="w-4 h-4" /> Back to Email
               </button>
-              <h2 className="text-2xl font-black text-slate-900">What's your phone number?</h2>
-              <p className="text-slate-500">We'll send a verification code to this number.</p>
+              <h2 className="text-2xl font-black text-slate-900">Create a password</h2>
+              <p className="text-slate-500">Make sure it's at least 6 characters long.</p>
             </div>
-            <form onSubmit={handlePhoneSubmit} className="space-y-4">
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
+                />
+              </div>
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium">
+                  {error}
+                </div>
+              )}
+              <button
+                type="submit"
+                className="w-full bg-[#1E3A8A] text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 hover:shadow-lg transition-all active:scale-[0.98]"
+              >
+                Continue <ArrowRight className="w-5 h-5" />
+              </button>
+            </form>
+          </motion.div>
+        );
+      case 'phone':
+        return (
+          <motion.div
+            key="phone"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="space-y-2">
+              <button 
+                onClick={() => setStep('password')}
+                className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-[#1E3A8A] transition-colors mb-4"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back to Password
+              </button>
+              <h2 className="text-2xl font-black text-slate-900">What's your phone number?</h2>
+              <p className="text-slate-500">Customers will use this to contact you.</p>
+            </div>
+            <form onSubmit={handleRegistration} className="space-y-4">
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <div className="flex items-center">
@@ -200,8 +177,6 @@ export const Register: React.FC = () => {
                 </div>
               )}
 
-              <div ref={recaptchaRef}></div>
-
               <button
                 type="submit"
                 disabled={loading}
@@ -210,68 +185,9 @@ export const Register: React.FC = () => {
                   loading && "opacity-70 cursor-not-allowed"
                 )}
               >
-                {loading ? "Sending Code..." : "Send Verification Code"}
+                {loading ? "Creating Account..." : "Create Account"}
                 {!loading && <ArrowRight className="w-5 h-5" />}
               </button>
-            </form>
-          </motion.div>
-        );
-      case 'otp':
-        return (
-          <motion.div
-            key="otp"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-6"
-          >
-            <div className="space-y-2">
-              <button 
-                onClick={() => setStep('phone')}
-                className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-[#1E3A8A] transition-colors mb-4"
-              >
-                <ArrowLeft className="w-4 h-4" /> Change Number
-              </button>
-              <h2 className="text-2xl font-black text-slate-900">Verify your number</h2>
-              <p className="text-slate-500">Enter the 6-digit code sent to <span className="font-bold text-slate-900">+212 {phone}</span></p>
-            </div>
-            <form onSubmit={handleOtpSubmit} className="space-y-8">
-              <div className="flex justify-between gap-2">
-                {otp.map((digit, i) => (
-                  <input
-                    key={i}
-                    id={`otp-${i}`}
-                    type="text"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    className="w-12 h-16 text-center text-2xl font-black bg-slate-50 border-2 border-transparent rounded-xl focus:border-[#F59E0B] focus:bg-white transition-all outline-none"
-                  />
-                ))}
-              </div>
-
-              {error && (
-                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium">
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <button
-                  type="submit"
-                  disabled={loading || otp.some(v => v === '')}
-                  className={cn(
-                    "w-full bg-[#F59E0B] text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 hover:shadow-lg transition-all active:scale-[0.98]",
-                    (loading || otp.some(v => v === '')) && "opacity-70 cursor-not-allowed"
-                  )}
-                >
-                  {loading ? "Verifying..." : "Verify & Create Account"}
-                  {!loading && <ShieldCheck className="w-5 h-5" />}
-                </button>
-                <p className="text-center text-sm text-slate-500">
-                  Didn't receive the code? <button type="button" className="font-bold text-[#1E3A8A] hover:underline">Resend</button>
-                </p>
-              </div>
             </form>
           </motion.div>
         );
@@ -288,13 +204,13 @@ export const Register: React.FC = () => {
             </div>
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-slate-900">Account Created!</h2>
-              <p className="text-slate-500">Welcome to M3ALLEM. Your account has been successfully verified.</p>
+              <p className="text-slate-500">Welcome to M3ALLEM. Your account has been successfully created.</p>
             </div>
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/complete-profile', { state: { email, phone: `+212${phone.replace(/\s/g, '')}` } })}
               className="w-full bg-[#1E3A8A] text-white py-4 rounded-2xl font-black text-lg hover:shadow-lg transition-all"
             >
-              Go to Dashboard
+              Complete Your Profile
             </button>
           </motion.div>
         );
@@ -320,8 +236,8 @@ export const Register: React.FC = () => {
               initial={{ width: "0%" }}
               animate={{ 
                 width: step === 'email' ? '25%' : 
-                       step === 'phone' ? '50%' : 
-                       step === 'otp' ? '75%' : '100%' 
+                       step === 'password' ? '50%' : 
+                       step === 'phone' ? '75%' : '100%' 
               }}
               transition={{ duration: 0.5 }}
             />
