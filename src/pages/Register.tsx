@@ -19,15 +19,26 @@ export const Register: React.FC = () => {
     if (email) setStep('phone');
   };
 
-  const handlePhoneSubmit = (e: React.FormEvent) => {
+  const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (phone) {
       setLoading(true);
-      // Simulate sending OTP
-      setTimeout(() => {
+      try {
+        const response = await fetch('/api/auth/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: `+212${phone}` }),
+        });
+        
+        if (!response.ok) throw new Error('Failed to send OTP');
+        
         setLoading(false);
         setStep('otp');
-      }, 1500);
+      } catch (err) {
+        console.error(err);
+        setLoading(false);
+        alert('Failed to send OTP. Please try again.');
+      }
     }
   };
 
@@ -44,15 +55,31 @@ export const Register: React.FC = () => {
     }
   };
 
-  const handleOtpSubmit = (e: React.FormEvent) => {
+  const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.every(v => v !== '')) {
+    const otpCode = otp.join('');
+    if (otpCode.length === 6) {
       setLoading(true);
-      // Simulate verification
-      setTimeout(() => {
+      try {
+        const response = await fetch('/api/auth/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            target: email || `+212${phone}`, 
+            otp: otpCode 
+          }),
+        });
+        
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Invalid OTP');
+        
         setLoading(false);
         setStep('success');
-      }, 1500);
+      } catch (err: any) {
+        console.error(err);
+        setLoading(false);
+        alert(err.message || 'Verification failed. Please try again.');
+      }
     }
   };
 
@@ -158,6 +185,9 @@ export const Register: React.FC = () => {
               </button>
               <h2 className="text-2xl font-black text-slate-900">Verify your number</h2>
               <p className="text-slate-500">Enter the 6-digit code sent to <span className="font-bold text-slate-900">+212 {phone}</span></p>
+              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                <span className="font-bold">Developer Note:</span> Since real SMS sending requires a paid service, the OTP has been logged to the <span className="font-bold">server console</span>. Please check the logs to find your code.
+              </div>
             </div>
             <form onSubmit={handleOtpSubmit} className="space-y-8">
               <div className="flex justify-between gap-2">
