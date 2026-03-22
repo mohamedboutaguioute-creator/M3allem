@@ -5,20 +5,25 @@ service cloud.firestore {
     // Assumed Data Model
     // ===============================================================
     //
-    // Collection: professionals
+    // Collection: professionals_public
     // Document ID: {professionalId} (matches auth.uid)
     // Fields:
-    //   - uid: string (required) - The unique identifier for the professional.
-    //   - fullName: string (required, 1-100 chars) - The full name of the professional.
-    //   - email: string (required, email format) - The email address of the professional.
-    //   - phone: string (required) - The phone number of the professional.
-    //   - address: string (required, 1-200 chars) - The physical address of the professional.
-    //   - zipcode: string (required, 1-10 chars) - The zip code of the professional's location.
-    //   - speciality: string (required, enum) - The professional's area of expertise.
-    //   - price: string (required, numeric) - The hourly rate or service price.
-    //   - createdAt: timestamp (required) - The date and time the profile was created.
-    //   - role: string (required, enum: ['professional']) - The role of the user.
-    //   - isVerified: bool (required) - Whether the professional has been verified by an admin.
+    //   - uid: string (required)
+    //   - fullName: string (required, 1-100 chars)
+    //   - speciality: string (required, enum)
+    //   - price: number (required, positive)
+    //   - city: string (required)
+    //   - createdAt: timestamp (required)
+    //   - isVerified: bool (required)
+    //   - role: string (required, enum: ['professional'])
+    //   - whatsapp_number: string (required) - Public business contact
+    //
+    // Collection: professionals_private
+    // Document ID: {professionalId} (matches auth.uid)
+    // Fields:
+    //   - email: string (required, email format)
+    //   - address: string (required, 1-200 chars)
+    //   - zipcode: string (required, 1-10 chars)
     //
     // ===============================================================
 
@@ -47,43 +52,52 @@ service cloud.firestore {
       return time > request.time - duration.value(5, 'm') && time <= request.time;
     }
 
-    function isValidProfessional(data) {
+    function isValidProfessionalPublic(data) {
       let validSpecialities = ['electrician', 'plumber', 'carpenter', 'painter', 'hvac', 'mason'];
-      return data.keys().hasAll(['uid', 'fullName', 'email', 'phone', 'address', 'zipcode', 'speciality', 'price', 'createdAt', 'role', 'isVerified']) &&
+      return data.keys().hasAll(['uid', 'fullName', 'speciality', 'price', 'city', 'createdAt', 'isVerified', 'role', 'whatsapp_number']) &&
              data.uid == request.auth.uid &&
              data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100 &&
-             isValidEmail(data.email) &&
-             data.phone is string &&
-             data.address is string && data.address.size() >= 1 && data.address.size() <= 200 &&
-             data.zipcode is string && data.zipcode.size() >= 1 && data.zipcode.size() <= 10 &&
              data.speciality in validSpecialities &&
              data.price is number && data.price > 0 &&
+             data.city is string &&
              data.role == 'professional' &&
              data.isVerified is bool &&
              data.createdAt is timestamp &&
+             data.whatsapp_number is string &&
              (request.method == 'create' ? isRecent(data.createdAt) : true);
+    }
+
+    function isValidProfessionalPrivate(data) {
+      return data.keys().hasAll(['email', 'address', 'zipcode']) &&
+             isValidEmail(data.email) &&
+             data.address is string && data.address.size() >= 1 && data.address.size() <= 200 &&
+             data.zipcode is string && data.zipcode.size() >= 1 && data.zipcode.size() <= 10;
     }
 
     // ===============================================================
     // Collection Rules
     // ===============================================================
 
-    match /professionals/{professionalId} {
+    match /professionals_public/{professionalId} {
       // Public can read verified professionals
       allow read: if resource.data.isVerified == true || isOwner(professionalId) || isAdmin();
       
-      // User can create their own profile
       allow create: if isOwner(professionalId) && 
-                      isValidProfessional(request.resource.data) && 
-                      request.resource.data.isVerified == false; // New profiles must be unverified
+                      isValidProfessionalPublic(request.resource.data) && 
+                      request.resource.data.isVerified == false;
       
-      // User can update their own profile (except isVerified)
       allow update: if isOwner(professionalId) && 
-                      isValidProfessional(request.resource.data) && 
-                      request.resource.data.isVerified == resource.data.isVerified; // Cannot self-verify
+                      isValidProfessionalPublic(request.resource.data) && 
+                      request.resource.data.isVerified == resource.data.isVerified;
       
-      // Admin can do anything
-      allow write: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /professionals_private/{professionalId} {
+      // ONLY owner or admin can read private data
+      allow read: if isOwner(professionalId) || isAdmin();
+      
+      allow write: if isOwner(professionalId) && isValidProfessionalPrivate(request.resource.data);
     }
 
     // Default deny

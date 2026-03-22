@@ -9,38 +9,41 @@ import { Auth } from './pages/Auth';
 import { Register } from './pages/Register';
 import { CompleteProfile } from './pages/CompleteProfile';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const queryClient = new QueryClient();
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <div dir="rtl" className="flex flex-col min-h-screen bg-white font-sans selection:bg-[#F59E0B]/30 selection:text-[#1E3A8A]">
-          <Routes>
-            {/* Admin Routes - No Navbar/Footer */}
-            <Route path="/admin/*" element={<AdminDashboard />} />
-            
-            {/* Public Routes */}
-            <Route path="*" element={
-              <>
-                <Navbar />
-                <main className="flex-grow">
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/directory" element={<Directory />} />
-                    <Route path="/profile/:id" element={<Profile />} />
-                    <Route path="/auth" element={<Auth />} />
-                    <Route path="/register" element={<Register />} />
-                    <Route path="/complete-profile" element={<CompleteProfile />} />
-                  </Routes>
-                </main>
-                <Footer />
-              </>
-            } />
-          </Routes>
-        </div>
-      </Router>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <Router>
+          <div dir="rtl" className="flex flex-col min-h-screen bg-white font-sans selection:bg-[#F59E0B]/30 selection:text-[#1E3A8A]">
+            <Routes>
+              {/* Admin Routes - No Navbar/Footer */}
+              <Route path="/admin/*" element={<AdminDashboard />} />
+              
+              {/* Public Routes */}
+              <Route path="*" element={
+                <>
+                  <Navbar />
+                  <main className="flex-grow">
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/directory" element={<Directory />} />
+                      <Route path="/profile/:id" element={<Profile />} />
+                      <Route path="/auth" element={<Auth />} />
+                      <Route path="/register" element={<Register />} />
+                      <Route path="/complete-profile" element={<CompleteProfile />} />
+                    </Routes>
+                  </main>
+                  <Footer />
+                </>
+              } />
+            </Routes>
+          </div>
+        </Router>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

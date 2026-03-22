@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Mail, Phone, MapPin, Hash, Briefcase, DollarSign, ShieldCheck, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { auth, db } from '../firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
 export const CompleteProfile: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export const CompleteProfile: React.FC = () => {
     phone: location.state?.phone || '',
     address: '',
     zipcode: '',
+    city: '',
     speciality: '',
     price: ''
   });
@@ -34,22 +36,43 @@ export const CompleteProfile: React.FC = () => {
     setLoading(true);
     setError(null);
 
+    const uid = auth.currentUser.uid;
+    const batch = writeBatch(db);
+
     try {
-      const userRef = doc(db, 'professionals', auth.currentUser.uid);
-      await setDoc(userRef, {
-        ...formData,
+      // Public Profile
+      const publicRef = doc(db, 'professionals_public', uid);
+      batch.set(publicRef, {
+        uid,
+        fullName: formData.fullName,
+        speciality: formData.speciality,
         price: Number(formData.price),
-        uid: auth.currentUser.uid,
+        city: formData.city,
+        whatsapp_number: formData.phone,
         createdAt: serverTimestamp(),
         role: 'professional',
-        isVerified: false // Admin will verify later
+        isVerified: false
       });
 
+      // Private Data
+      const privateRef = doc(db, 'professionals_private', uid);
+      batch.set(privateRef, {
+        email: formData.email,
+        address: formData.address,
+        zipcode: formData.zipcode
+      });
+
+      await batch.commit();
       navigate('/');
     } catch (err: any) {
       console.error('Error saving profile:', err);
-      setError(err.message || 'Failed to save profile. Please try again.');
       setLoading(false);
+      
+      if (err.code === 'permission-denied') {
+        handleFirestoreError(err, OperationType.WRITE, `professionals_public/${uid}`);
+      }
+      
+      setError(err.message || 'Failed to save profile. Please try again.');
     }
   };
 
@@ -126,6 +149,31 @@ export const CompleteProfile: React.FC = () => {
                 </div>
               </div>
 
+              {/* City */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-900 uppercase tracking-wider">City</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <select
+                    name="city"
+                    required
+                    value={formData.city}
+                    onChange={handleChange}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none appearance-none"
+                  >
+                    <option value="">Select City</option>
+                    <option value="Casablanca">Casablanca</option>
+                    <option value="Marrakech">Marrakech</option>
+                    <option value="Rabat">Rabat</option>
+                    <option value="Tangier">Tangier</option>
+                    <option value="Agadir">Agadir</option>
+                    <option value="Fes">Fes</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Zipcode */}
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-900 uppercase tracking-wider">Zip Code</label>
@@ -142,22 +190,22 @@ export const CompleteProfile: React.FC = () => {
                   />
                 </div>
               </div>
-            </div>
 
-            {/* Address */}
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-900 uppercase tracking-wider">Full Address</label>
-              <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="text"
-                  name="address"
-                  required
-                  value={formData.address}
-                  onChange={handleChange}
-                  placeholder="Street name, Building, Apartment..."
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
-                />
+              {/* Address */}
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-900 uppercase tracking-wider">Full Address</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    name="address"
+                    required
+                    value={formData.address}
+                    onChange={handleChange}
+                    placeholder="Street name, Building, Apartment..."
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
+                  />
+                </div>
               </div>
             </div>
 
