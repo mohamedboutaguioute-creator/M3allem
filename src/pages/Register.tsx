@@ -22,18 +22,21 @@ export const Register: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const recaptchaRef = React.useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Initialize Recaptcha
-    if (step === 'phone' && !window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        'size': 'invisible',
-        'callback': () => {
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
+    // Cleanup recaptcha on unmount or step change
+    return () => {
+      if (window.recaptchaVerifier) {
+        try {
+          window.recaptchaVerifier.clear();
+          window.recaptchaVerifier = undefined;
+        } catch (e) {
+          // Ignore clear errors
         }
-      });
-    }
+      }
+    };
   }, [step]);
 
   const handleEmailSubmit = (e: React.FormEvent) => {
@@ -47,9 +50,22 @@ export const Register: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const fullPhone = `+212${phone.replace(/\s/g, '')}`;
-        const appVerifier = window.recaptchaVerifier;
+        // Ensure Recaptcha is initialized
+        if (!window.recaptchaVerifier && recaptchaRef.current) {
+          window.recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaRef.current, {
+            'size': 'invisible'
+          });
+        }
+
+        if (!window.recaptchaVerifier) {
+          throw new Error('Verification system not ready. Please try again.');
+        }
+
+        // Format phone number: remove spaces and leading zero if present
+        const cleanPhone = phone.replace(/\s/g, '').replace(/^0/, '');
+        const fullPhone = `+212${cleanPhone}`;
         
+        const appVerifier = window.recaptchaVerifier;
         const confirmation = await signInWithPhoneNumber(auth, fullPhone, appVerifier);
         setConfirmationResult(confirmation);
         setLoading(false);
@@ -57,12 +73,20 @@ export const Register: React.FC = () => {
       } catch (err: any) {
         console.error('Firebase Auth Error:', err);
         setLoading(false);
-        setError(err.message || 'Failed to send OTP. Please ensure Phone Auth is enabled in Firebase Console.');
+        
+        let message = 'Failed to send OTP. Please try again.';
+        if (err.code === 'auth/invalid-phone-number') message = 'Invalid phone number format.';
+        if (err.code === 'auth/too-many-requests') message = 'Too many attempts. Please try again later.';
+        if (err.message) message = err.message;
+        
+        setError(message);
         
         // Reset recaptcha on error
         if (window.recaptchaVerifier) {
-          window.recaptchaVerifier.clear();
-          window.recaptchaVerifier = undefined;
+          try {
+            window.recaptchaVerifier.clear();
+            window.recaptchaVerifier = undefined;
+          } catch (e) {}
         }
       }
     }
@@ -176,7 +200,7 @@ export const Register: React.FC = () => {
                 </div>
               )}
 
-              <div id="recaptcha-container"></div>
+              <div ref={recaptchaRef}></div>
 
               <button
                 type="submit"
