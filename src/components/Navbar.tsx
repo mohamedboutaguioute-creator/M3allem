@@ -15,9 +15,9 @@ export const Navbar: React.FC = () => {
         <div className="flex justify-between h-16 items-center">
           <Link to="/" className="flex items-center gap-2 group">
             <div className="w-10 h-10 bg-[#1E3A8A] rounded-xl flex items-center justify-center group-hover:bg-[#F59E0B] transition-colors">
-              <span className="text-white font-black text-xl">M</span>
+              <span className="text-[#F59E0B] font-black text-xl">M</span>
             </div>
-            <span className="text-xl font-black tracking-tighter text-slate-900">{t.appName}</span>
+            <span className="text-xl font-black tracking-tighter text-slate-900"><span className="text-[#F59E0B]">M</span>{t.appName.slice(1)}</span>
           </Link>
 
           {/* Desktop Nav */}

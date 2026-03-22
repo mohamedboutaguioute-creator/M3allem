@@ -17,7 +17,7 @@ export const Footer: React.FC = () => {
               <div className="w-8 h-8 bg-[#F59E0B] rounded-lg flex items-center justify-center">
                 <span className="text-white font-black text-lg">M</span>
               </div>
-              <span className="text-xl font-black tracking-tighter text-white">{common.appName}</span>
+              <span className="text-xl font-black tracking-tighter text-white"><span className="text-[#F59E0B]">M</span>{common.appName.slice(1)}</span>
             </Link>
             <p className="text-sm leading-relaxed mb-6">
               {t.aboutText}

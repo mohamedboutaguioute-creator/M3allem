@@ -239,7 +239,7 @@ export const Auth: React.FC = () => {
                 </button>
                 <div className="text-center">
                   <p className="text-sm text-slate-500">
-                    Don't have an account? <button className="font-bold text-[#1E3A8A] hover:underline">Create one</button>
+                    Don't have an account? <Link to="/register" className="font-bold text-[#1E3A8A] hover:underline">Create one</Link>
                   </p>
                 </div>
               </div>

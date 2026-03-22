@@ -30,7 +30,7 @@ export const AdminSidebar: React.FC = () => {
           <Hammer className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h2 className="text-white font-black text-lg leading-tight">M3ALLEM</h2>
+          <h2 className="text-white font-black text-lg leading-tight"><span className="text-[#F59E0B]">M</span>3ALLEM</h2>
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Admin Panel</p>
         </div>
       </div>

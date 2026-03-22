@@ -6,6 +6,7 @@ import { Home } from './pages/Home';
 import { Directory } from './pages/Directory';
 import { Profile } from './pages/Profile';
 import { Auth } from './pages/Auth';
+import { Register } from './pages/Register';
 import { AdminDashboard } from './pages/AdminDashboard';
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ export default function App() {
                     <Route path="/directory" element={<Directory />} />
                     <Route path="/profile/:id" element={<Profile />} />
                     <Route path="/auth" element={<Auth />} />
+                    <Route path="/register" element={<Register />} />
                   </Routes>
                 </main>
                 <Footer />
