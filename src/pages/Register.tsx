@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Phone, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { auth } from '../firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+  }
+}
 
 type Step = 'email' | 'phone' | 'otp' | 'success';
 
@@ -12,7 +20,21 @@ export const Register: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Initialize Recaptcha
+    if (step === 'phone' && !window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        'size': 'invisible',
+        'callback': () => {
+          // reCAPTCHA solved, allow signInWithPhoneNumber.
+        }
+      });
+    }
+  }, [step]);
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,21 +45,25 @@ export const Register: React.FC = () => {
     e.preventDefault();
     if (phone) {
       setLoading(true);
+      setError(null);
       try {
-        const response = await fetch('/api/auth/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: `+212${phone}` }),
-        });
+        const fullPhone = `+212${phone.replace(/\s/g, '')}`;
+        const appVerifier = window.recaptchaVerifier;
         
-        if (!response.ok) throw new Error('Failed to send OTP');
-        
+        const confirmation = await signInWithPhoneNumber(auth, fullPhone, appVerifier);
+        setConfirmationResult(confirmation);
         setLoading(false);
         setStep('otp');
-      } catch (err) {
-        console.error(err);
+      } catch (err: any) {
+        console.error('Firebase Auth Error:', err);
         setLoading(false);
-        alert('Failed to send OTP. Please try again.');
+        setError(err.message || 'Failed to send OTP. Please ensure Phone Auth is enabled in Firebase Console.');
+        
+        // Reset recaptcha on error
+        if (window.recaptchaVerifier) {
+          window.recaptchaVerifier.clear();
+          window.recaptchaVerifier = undefined;
+        }
       }
     }
   };
@@ -58,27 +84,17 @@ export const Register: React.FC = () => {
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const otpCode = otp.join('');
-    if (otpCode.length === 6) {
+    if (otpCode.length === 6 && confirmationResult) {
       setLoading(true);
+      setError(null);
       try {
-        const response = await fetch('/api/auth/verify-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            target: email || `+212${phone}`, 
-            otp: otpCode 
-          }),
-        });
-        
-        const data = await response.json();
-        if (!data.success) throw new Error(data.error || 'Invalid OTP');
-        
+        await confirmationResult.confirm(otpCode);
         setLoading(false);
         setStep('success');
       } catch (err: any) {
-        console.error(err);
+        console.error('Verification Error:', err);
         setLoading(false);
-        alert(err.message || 'Verification failed. Please try again.');
+        setError(err.message || 'Invalid code. Please try again.');
       }
     }
   };
@@ -153,6 +169,15 @@ export const Register: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium">
+                  {error}
+                </div>
+              )}
+
+              <div id="recaptcha-container"></div>
+
               <button
                 type="submit"
                 disabled={loading}
@@ -185,9 +210,6 @@ export const Register: React.FC = () => {
               </button>
               <h2 className="text-2xl font-black text-slate-900">Verify your number</h2>
               <p className="text-slate-500">Enter the 6-digit code sent to <span className="font-bold text-slate-900">+212 {phone}</span></p>
-              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-                <span className="font-bold">Developer Note:</span> Since real SMS sending requires a paid service, the OTP has been logged to the <span className="font-bold">server console</span>. Please check the logs to find your code.
-              </div>
             </div>
             <form onSubmit={handleOtpSubmit} className="space-y-8">
               <div className="flex justify-between gap-2">
@@ -203,6 +225,13 @@ export const Register: React.FC = () => {
                   />
                 ))}
               </div>
+
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium">
+                  {error}
+                </div>
+              )}
+
               <div className="space-y-4">
                 <button
                   type="submit"
