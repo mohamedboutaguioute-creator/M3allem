@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "Professional": {
+      "title": "Professional",
+      "description": "A professional service provider on the platform.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique identifier for the professional." },
+        "fullName": { "type": "string", "description": "The full name of the professional." },
+        "email": { "type": "string", "format": "email", "description": "The email address of the professional." },
+        "phone": { "type": "string", "description": "The phone number of the professional." },
+        "address": { "type": "string", "description": "The physical address of the professional." },
+        "zipcode": { "type": "string", "description": "The zip code of the professional's location." },
+        "speciality": { "type": "string", "description": "The professional's area of expertise." },
+        "price": { "type": "number", "description": "The hourly rate or service price." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "The date and time the profile was created." },
+        "role": { "type": "string", "enum": ["professional"], "description": "The role of the user." },
+        "isVerified": { "type": "boolean", "description": "Whether the professional has been verified by an admin." }
+      },
+      "required": ["uid", "fullName", "email", "phone", "address", "zipcode", "speciality", "price", "createdAt", "role", "isVerified"]
+    }
+  },
+  "firestore": {
+    "/professionals/{professionalId}": {
+      "schema": "Professional",
+      "description": "Collection of professional service providers."
+    }
+  }
+}

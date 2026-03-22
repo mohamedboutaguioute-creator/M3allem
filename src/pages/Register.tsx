@@ -90,7 +90,7 @@ export const Register: React.FC = () => {
       try {
         await confirmationResult.confirm(otpCode);
         setLoading(false);
-        setStep('success');
+        navigate('/complete-profile', { state: { email, phone: `+212${phone.replace(/\s/g, '')}` } });
       } catch (err: any) {
         console.error('Verification Error:', err);
         setLoading(false);

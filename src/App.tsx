@@ -7,6 +7,7 @@ import { Directory } from './pages/Directory';
 import { Profile } from './pages/Profile';
 import { Auth } from './pages/Auth';
 import { Register } from './pages/Register';
+import { CompleteProfile } from './pages/CompleteProfile';
 import { AdminDashboard } from './pages/AdminDashboard';
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ export default function App() {
                     <Route path="/profile/:id" element={<Profile />} />
                     <Route path="/auth" element={<Auth />} />
                     <Route path="/register" element={<Register />} />
+                    <Route path="/complete-profile" element={<CompleteProfile />} />
                   </Routes>
                 </main>
                 <Footer />
