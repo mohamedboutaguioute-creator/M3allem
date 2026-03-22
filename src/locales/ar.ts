@@ -1,0 +1,41 @@
+export const translations = {
+  common: {
+    appName: "M3ALLEM",
+    signIn: "تسجيل الدخول",
+    joinAsPro: "انضم كحريفي",
+    findPro: "لقا حريفي",
+    search: "بحث",
+    allCities: "جميع المدن",
+    contactWhatsApp: "تواصل فواتساب",
+    viewProfile: "شوف البروفايل",
+    verifiedPro: "حريفي معقول وموثوق",
+    callNow: "اتصل دابا",
+    successMessage: "الطلب ديالك وصل، الحريفي غيتواصل معاك",
+  },
+  hero: {
+    title: "لقا أحسن حريفي قريب ليك فمدينتك",
+    subtitle: "تواصل مع أحسن الحريفية فالمغرب: تريسيتي، بلومبي، بناي... كولشي موثوق ومعقول.",
+    placeholder: "على واش كتقلب؟ (بلومبي، تريسيتي...)",
+  },
+  categories: {
+    Electricity: "الكهرباء (تريسيتي)",
+    Plumbing: "السباكة (بلومبي)",
+    Construction: "البناء (بناي)",
+    Painting: "الصباغة",
+    Carpentry: "النجارة",
+  },
+  footer: {
+    aboutText: "المنصة رقم 1 فالمغرب باش تلقى أحسن الحريفية. جودة، ثقة، ومعقول حتى لعندك.",
+    services: "الخدمات",
+    company: "الشركة",
+    contactUs: "اتصل بنا",
+    aboutUs: "من نحن",
+    contact: "تواصل معنا",
+    terms: "شروط الخدمة",
+    privacy: "سياسة الخصوصية",
+    newsletter: "اشترك فالمجلة ديالنا",
+    emailPlaceholder: "البريد الإلكتروني",
+    join: "انضم",
+    rightsReserved: "جميع الحقوق محفوظة. صاوبناه بكل ❤️ فالمغرب.",
+  }
+};
