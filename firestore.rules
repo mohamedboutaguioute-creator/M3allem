@@ -22,8 +22,8 @@ service cloud.firestore {
     // Document ID: {professionalId} (matches auth.uid)
     // Fields:
     //   - email: string (required, email format)
-    //   - address: string (required, 1-200 chars)
-    //   - zipcode: string (required, 1-10 chars)
+    //   - dob: string (required)
+    //   - gender: string (required, enum: ['male', 'female', 'other'])
     //
     // ===============================================================
 
@@ -53,12 +53,12 @@ service cloud.firestore {
     }
 
     function isValidProfessionalPublic(data) {
-      let validSpecialities = ['electrician', 'plumber', 'carpenter', 'painter', 'hvac', 'mason'];
+      let validSpecialities = ['electrician', 'plumber', 'carpenter', 'painter', 'hvac', 'mason', 'General'];
       return data.keys().hasAll(['uid', 'fullName', 'speciality', 'price', 'city', 'createdAt', 'isVerified', 'role', 'whatsapp_number']) &&
              data.uid == request.auth.uid &&
              data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100 &&
              data.speciality in validSpecialities &&
-             data.price is number && data.price > 0 &&
+             data.price is number && data.price >= 0 &&
              data.city is string &&
              data.role == 'professional' &&
              data.isVerified is bool &&
@@ -68,10 +68,10 @@ service cloud.firestore {
     }
 
     function isValidProfessionalPrivate(data) {
-      return data.keys().hasAll(['email', 'address', 'zipcode']) &&
+      return data.keys().hasAll(['email', 'dob', 'gender']) &&
              isValidEmail(data.email) &&
-             data.address is string && data.address.size() >= 1 && data.address.size() <= 200 &&
-             data.zipcode is string && data.zipcode.size() >= 1 && data.zipcode.size() <= 10;
+             data.dob is string &&
+             data.gender in ['male', 'female', 'other'];
     }
 
     // ===============================================================

@@ -6,17 +6,59 @@ import {
   CheckCircle, MessageCircle, Facebook, Globe, ExternalLink, Camera,
   LayoutDashboard, LogOut, Star, DollarSign, Clock, CheckCircle2
 } from 'lucide-react';
-import { auth, db } from '../firebase';
+import { auth, db, storage } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { motion, AnimatePresence } from 'framer-motion';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { cn } from '../lib/utils';
 import { Handyman } from '../types';
+
+// Fix Leaflet icons
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+const CITY_COORDINATES: Record<string, [number, number]> = {
+  'Casablanca': [33.5731, -7.5898],
+  'Rabat': [34.0209, -6.8416],
+  'Marrakech': [31.6295, -7.9811],
+  'Fes': [34.0181, -5.0078],
+  'Tangier': [35.7595, -5.8340],
+  'Agadir': [30.4278, -9.5981],
+  'Meknes': [33.8935, -5.5473],
+  'Oujda': [34.6805, -1.9077],
+  'Kenitra': [34.2610, -6.5802],
+  'Tetouan': [35.5785, -5.3684],
+  'Safi': [32.2994, -9.2372],
+  'El Jadida': [33.2316, -8.5007],
+  'Nador': [35.1681, -2.9335],
+  'Settat': [33.0010, -7.6166],
+  'Mohammedia': [33.6835, -7.3849],
+  'Khouribga': [32.8810, -6.9063],
+  'Beni Mellal': [32.3373, -6.3498],
+  'Temara': [33.9236, -6.9111],
+  'Laayoune': [27.1253, -13.1625],
+};
+
+const MapUpdater: React.FC<{ center: [number, number] }> = ({ center }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, 12);
+  }, [center, map]);
+  return null;
+};
 
 export const ProfessionalProfile: React.FC = () => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [profile, setProfile] = useState<Handyman | null>(null);
   const [editData, setEditData] = useState<Partial<Handyman>>({});
   const [newSkill, setNewSkill] = useState('');
@@ -89,12 +131,14 @@ export const ProfessionalProfile: React.FC = () => {
 
       const publicUpdate = {
         fullName: editData.full_name,
+        avatar_url: editData.avatar_url,
         speciality: editData.category,
         city: editData.city,
         bio: editData.bio,
         whatsapp_number: editData.whatsapp_number,
         years_of_experience: Number(editData.years_of_experience),
         skills: editData.skills,
+        portfolio_images: editData.portfolio_images,
         facebook_url: editData.facebook_url,
         price: Number(editData.price)
       };
@@ -136,6 +180,90 @@ export const ProfessionalProfile: React.FC = () => {
     }));
   };
 
+  const handlePortfolioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !auth.currentUser) return;
+
+    setUploading(true);
+    try {
+      const storageRef = ref(storage, `portfolios/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      const newPortfolio = [...(editData.portfolio_images || []), downloadURL];
+      setEditData(prev => ({
+        ...prev,
+        portfolio_images: newPortfolio
+      }));
+
+      // Also update the profile state so it shows up immediately if not in edit mode
+      // (though usually we are in edit mode when uploading)
+      if (!isEditing) {
+        const publicRef = doc(db, 'professionals_public', auth.currentUser.uid);
+        await updateDoc(publicRef, { portfolio_images: newPortfolio });
+        setProfile(prev => prev ? { ...prev, portfolio_images: newPortfolio } : null);
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeletePortfolioImage = async (imageUrl: string) => {
+    if (!auth.currentUser) return;
+
+    try {
+      // 1. Remove from Firestore
+      const newPortfolio = (editData.portfolio_images || []).filter(img => img !== imageUrl);
+      setEditData(prev => ({
+        ...prev,
+        portfolio_images: newPortfolio
+      }));
+
+      if (!isEditing) {
+        const publicRef = doc(db, 'professionals_public', auth.currentUser.uid);
+        await updateDoc(publicRef, { portfolio_images: newPortfolio });
+        setProfile(prev => prev ? { ...prev, portfolio_images: newPortfolio } : null);
+      }
+
+      // 2. Delete from Storage (optional, but good practice)
+      // Note: We need to extract the path from the URL or store it. 
+      // For now, we'll just remove it from the list.
+      // If we want to delete from storage, we'd need the ref.
+      // const imageRef = ref(storage, imageUrl);
+      // await deleteObject(imageRef);
+    } catch (error) {
+      console.error('Error deleting image:', error);
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !auth.currentUser) return;
+
+    setUploading(true);
+    try {
+      const storageRef = ref(storage, `avatars/${auth.currentUser.uid}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      setEditData(prev => ({ ...prev, avatar_url: downloadURL }));
+      
+      if (!isEditing) {
+        const publicRef = doc(db, 'professionals_public', auth.currentUser.uid);
+        await updateDoc(publicRef, { avatar_url: downloadURL });
+        setProfile(prev => prev ? { ...prev, avatar_url: downloadURL } : null);
+      }
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      alert('Failed to upload avatar.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -161,16 +289,22 @@ export const ProfessionalProfile: React.FC = () => {
             <div className="relative group">
               <div className="w-32 h-32 md:w-44 md:h-44 rounded-[2.5rem] border-4 border-white overflow-hidden shadow-2xl bg-white">
                 <img 
-                  src={profile.avatar_url} 
+                  src={isEditing ? editData.avatar_url : profile.avatar_url} 
                   alt={profile.full_name} 
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
                 />
               </div>
               {isEditing && (
-                <button className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity">
+                <label className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                   <Camera className="w-8 h-8 text-white" />
-                </button>
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                  />
+                </label>
               )}
             </div>
 
@@ -342,14 +476,21 @@ export const ProfessionalProfile: React.FC = () => {
                   معرض الأعمال
                 </h2>
                 {isEditing && (
-                  <button className="text-[#1E3A8A] font-bold flex items-center gap-2 hover:underline">
+                  <label className="text-[#1E3A8A] font-bold flex items-center gap-2 hover:underline cursor-pointer">
                     <Plus className="w-4 h-4" /> إضافة صور
-                  </button>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={handlePortfolioUpload}
+                      disabled={uploading}
+                    />
+                  </label>
                 )}
               </div>
               
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {profile.portfolio_images?.map((img, idx) => (
+                {(isEditing ? editData.portfolio_images : profile.portfolio_images)?.map((img, idx) => (
                   <div key={idx} className="aspect-square rounded-3xl overflow-hidden border border-slate-100 relative group">
                     <img 
                       src={img} 
@@ -358,17 +499,36 @@ export const ProfessionalProfile: React.FC = () => {
                       referrerPolicy="no-referrer"
                     />
                     {isEditing && (
-                      <button className="absolute top-3 right-3 bg-red-500 text-white p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => handleDeletePortfolioImage(img)}
+                        className="absolute top-3 right-3 bg-red-500 text-white p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
                 ))}
                 {isEditing && (
-                  <button className="aspect-square rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-[#F59E0B] hover:text-[#F59E0B] transition-all">
-                    <ImageIcon className="w-8 h-8 mb-2" />
-                    <span className="text-xs font-bold uppercase tracking-wider">تحميل</span>
-                  </button>
+                  <label className={cn(
+                    "aspect-square rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-[#F59E0B] hover:text-[#F59E0B] transition-all cursor-pointer",
+                    uploading && "opacity-50 cursor-not-allowed"
+                  )}>
+                    {uploading ? (
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#F59E0B]"></div>
+                    ) : (
+                      <>
+                        <ImageIcon className="w-8 h-8 mb-2" />
+                        <span className="text-xs font-bold uppercase tracking-wider">تحميل</span>
+                      </>
+                    )}
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/*"
+                      onChange={handlePortfolioUpload}
+                      disabled={uploading}
+                    />
+                  </label>
                 )}
               </div>
             </section>
@@ -385,7 +545,7 @@ export const ProfessionalProfile: React.FC = () => {
                     <Clock className="w-7 h-7 text-[#1E3A8A]" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">الخبرة</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">سنوات الخبرة</p>
                     {isEditing ? (
                       <div className="flex items-center gap-2">
                         <input 
@@ -394,10 +554,10 @@ export const ProfessionalProfile: React.FC = () => {
                           onChange={(e) => setEditData({ ...editData, years_of_experience: Number(e.target.value) })}
                           className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none text-right"
                         />
-                        <span className="font-bold text-slate-900">سنوات</span>
+                        <span className="font-bold text-slate-900">سنة</span>
                       </div>
                     ) : (
-                      <p className="font-black text-slate-900 text-lg">{profile.years_of_experience} سنوات</p>
+                      <p className="font-black text-slate-900 text-lg">{profile.years_of_experience} سنة</p>
                     )}
                   </div>
                 </div>
@@ -434,6 +594,34 @@ export const ProfessionalProfile: React.FC = () => {
                       <p className="font-black text-slate-900 text-lg">{profile.price} درهم/ساعة</p>
                     )}
                   </div>
+                </div>
+
+                {/* Map Section */}
+                <div className="mt-8 pt-8 border-t border-slate-100">
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-4">منطقة الخدمة</p>
+                  <div className="h-48 rounded-3xl overflow-hidden border border-slate-100 shadow-inner relative z-0">
+                    <MapContainer 
+                      center={CITY_COORDINATES[profile.city] || [31.7917, -7.0926]} 
+                      zoom={12} 
+                      style={{ height: '100%', width: '100%' }}
+                      scrollWheelZoom={false}
+                    >
+                      <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      />
+                      <Marker position={CITY_COORDINATES[profile.city] || [31.7917, -7.0926]}>
+                        <Popup>
+                          <span className="font-bold">{profile.city}</span> <br />
+                          منطقة العمل المفضلة
+                        </Popup>
+                      </Marker>
+                      <MapUpdater center={CITY_COORDINATES[isEditing ? editData.city || '' : profile.city] || [31.7917, -7.0926]} />
+                    </MapContainer>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 text-center italic">
+                    * يتم تحديد الموقع بناءً على المدينة المختارة
+                  </p>
                 </div>
               </div>
             </div>

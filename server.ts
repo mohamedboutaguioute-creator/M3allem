@@ -42,7 +42,7 @@ app.post("/api/auth/send-otp", async (req, res) => {
   if (email) {
     try {
       await transporter.sendMail({
-        from: '"M3ALLEM Auth" <auth@m3allem.ma>',
+        from: '"Brekoul Auth" <auth@brekoul.ma>',
         to: email,
         subject: "Your Verification Code",
         text: `Your verification code is: ${otp}. It expires in 5 minutes.`,

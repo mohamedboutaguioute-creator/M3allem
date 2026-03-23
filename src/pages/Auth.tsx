@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { auth } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { Logo } from '../components/Logo';
 
 export const Auth: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -37,8 +38,13 @@ export const Auth: React.FC = () => {
     } catch (err: any) {
       console.error('Sign In Error:', err);
       let message = 'Failed to sign in. Please check your credentials.';
-      if (err.code === 'auth/user-not-found') message = 'No account found with this email.';
-      if (err.code === 'auth/wrong-password') message = 'Incorrect password.';
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+        message = 'Incorrect email or password. Please try again or reset your password.';
+      } else if (err.code === 'auth/wrong-password') {
+        message = 'Incorrect password. Please try again.';
+      } else if (err.code === 'auth/too-many-requests') {
+        message = 'Too many failed attempts. Please try again later.';
+      }
       setError(message);
     } finally {
       setLoading(false);
@@ -53,12 +59,11 @@ export const Auth: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 py-20">
       <div className="max-w-xl w-full">
         {/* Logo */}
-        <Link to="/" className="flex items-center justify-center gap-2 mb-12 group">
-          <div className="w-12 h-12 bg-[#1E3A8A] rounded-2xl flex items-center justify-center group-hover:bg-[#F59E0B] transition-colors">
-            <span className="text-white font-black text-2xl">M</span>
-          </div>
-          <span className="text-2xl font-black tracking-tighter text-slate-900 uppercase">M3ALLEM</span>
-        </Link>
+        <div className="flex justify-center mb-12">
+          <Link to="/">
+            <Logo className="scale-125" />
+          </Link>
+        </div>
 
         <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
           {/* Header */}
@@ -69,7 +74,7 @@ export const Auth: React.FC = () => {
             </h2>
             <p className="text-white/70 relative">
               {isPro 
-                ? 'Start growing your business with M3ALLEM today.' 
+                ? 'Start growing your business with BREKOUL today.' 
                 : 'Sign in to manage your reviews and bookings.'}
             </p>
           </div>
@@ -153,7 +158,7 @@ export const Auth: React.FC = () => {
             to={isPro ? "/auth" : "/auth?type=pro"} 
             className="text-sm font-bold text-slate-500 hover:text-[#1E3A8A] transition-colors"
           >
-            {isPro ? "Looking for a handyman? Sign in as Customer" : "Are you a professional? Join as M3allem"}
+            {isPro ? "Looking for a handyman? Sign in as Customer" : "Are you a professional? Join as Brekoul"}
           </Link>
         </div>
       </div>

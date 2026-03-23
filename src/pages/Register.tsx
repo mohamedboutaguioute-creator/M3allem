@@ -4,10 +4,39 @@ import { Mail, Phone, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Lock, Us
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { auth, db } from '../firebase';
+import { Logo } from '../components/Logo';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 type Step = 'signup' | 'phone' | 'otp' | 'profile' | 'success';
+
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
 
 export const Register: React.FC = () => {
   const [step, setStep] = useState<Step>('signup');
@@ -30,13 +59,33 @@ export const Register: React.FC = () => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSignupSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.fullName && formData.email && formData.password.length >= 6) {
-      setStep('phone');
-      setError(null);
-    } else if (formData.password.length < 6) {
+    if (formData.password.length < 6) {
       setError('Password must be at least 6 characters.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Create the user immediately to check if email is available
+      await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      setStep('phone');
+    } catch (err: any) {
+      console.error('Signup Error:', err);
+      let message = 'Failed to start registration. Please try again.';
+      if (err.code === 'auth/email-already-in-use' || err.message?.includes('email-already-in-use')) {
+        message = 'This email is already registered. Please sign in instead.';
+      } else if (err.code === 'auth/invalid-email') {
+        message = 'The email address is badly formatted.';
+      } else if (err.code === 'auth/invalid-credential') {
+        message = 'Invalid registration details. Please check your email and password.';
+      }
+      setError(message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -71,15 +120,40 @@ export const Register: React.FC = () => {
     }
   };
 
+  const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+    const errInfo: FirestoreErrorInfo = {
+      error: error instanceof Error ? error.message : String(error),
+      authInfo: {
+        userId: auth.currentUser?.uid,
+        email: auth.currentUser?.email,
+        emailVerified: auth.currentUser?.emailVerified,
+        isAnonymous: auth.currentUser?.isAnonymous,
+        tenantId: auth.currentUser?.tenantId,
+        providerInfo: auth.currentUser?.providerData.map(provider => ({
+          providerId: provider.providerId,
+          displayName: provider.displayName,
+          email: provider.email,
+          photoUrl: provider.photoURL
+        })) || []
+      },
+      operationType,
+      path
+    }
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    throw new Error(JSON.stringify(errInfo));
+  }
+
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Create User in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      const uid = userCredential.user.uid;
+      const user = auth.currentUser;
+      if (!user) {
+        throw new Error('No authenticated user found. Please start over.');
+      }
+      const uid = user.uid;
 
       // 2. Consolidate Data for API/Firestore
       const consolidatedData = {
@@ -122,16 +196,18 @@ export const Register: React.FC = () => {
         gender: consolidatedData.gender,
       });
 
-      await batch.commit();
+      try {
+        await batch.commit();
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, 'batch_commit_registration');
+      }
       
       setLoading(false);
       setStep('success');
     } catch (err: any) {
       console.error('Registration Error:', err);
       setLoading(false);
-      let message = 'Failed to create account. Please try again.';
-      if (err.code === 'auth/email-already-in-use') message = 'This email is already registered.';
-      setError(message);
+      setError(err.message || 'Failed to complete registration. Please try again.');
     }
   };
 
@@ -148,7 +224,7 @@ export const Register: React.FC = () => {
           >
             <div className="space-y-2">
               <h2 className="text-2xl font-black text-slate-900">Create your account</h2>
-              <p className="text-slate-500">Join the M3ALLEM community today.</p>
+              <p className="text-slate-500">Join the Brekoul community today.</p>
             </div>
             <form onSubmit={handleSignupSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -198,12 +274,21 @@ export const Register: React.FC = () => {
                 </div>
               </div>
               {error && (
-                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium">
-                  {error}
+                <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium flex flex-col gap-2">
+                  <span>{error}</span>
+                  {error.includes('already registered') && (
+                    <Link to="/auth" className="text-[#1E3A8A] underline font-bold">
+                      Sign In here
+                    </Link>
+                  )}
                 </div>
               )}
-              <button type="submit" className="btn-primary w-full py-4 text-lg flex items-center justify-center gap-2">
-                Continue <ArrowRight className="w-5 h-5" />
+              <button 
+                type="submit" 
+                disabled={loading}
+                className={cn("btn-primary w-full py-4 text-lg flex items-center justify-center gap-2", loading && "opacity-70")}
+              >
+                {loading ? "Checking..." : "Continue"} <ArrowRight className="w-5 h-5" />
               </button>
             </form>
           </motion.div>
@@ -387,7 +472,7 @@ export const Register: React.FC = () => {
             </div>
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-slate-900">Welcome!</h2>
-              <p className="text-slate-500">Your account has been successfully created. You can now start using M3ALLEM.</p>
+              <p className="text-slate-500">Your account has been successfully created. You can now start using Brekoul.</p>
             </div>
             <button onClick={() => navigate('/')} className="btn-primary w-full py-4 text-lg">
               Go to Dashboard
@@ -400,12 +485,11 @@ export const Register: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 py-20">
       <div className="max-w-md w-full">
-        <Link to="/" className="flex items-center justify-center gap-2 mb-12 group">
-          <div className="w-10 h-10 bg-[#1E3A8A] rounded-xl flex items-center justify-center group-hover:bg-[#F59E0B] transition-colors">
-            <span className="text-white font-black text-xl">M</span>
-          </div>
-          <span className="text-xl font-black tracking-tighter text-slate-900 uppercase">M3ALLEM</span>
-        </Link>
+        <div className="flex justify-center mb-12">
+          <Link to="/">
+            <Logo />
+          </Link>
+        </div>
 
         <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
           <div className="flex h-1.5 bg-slate-100">

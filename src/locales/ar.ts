@@ -1,6 +1,6 @@
 export const translations = {
   common: {
-    appName: "M3ALLEM",
+    appName: "بريكول",
     signIn: "تسجيل الدخول",
     joinAsPro: "انضم كحريفي",
     findPro: "لقا حريفي",

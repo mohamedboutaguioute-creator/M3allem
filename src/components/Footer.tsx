@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Instagram, Twitter, Mail, Phone } from 'lucide-react';
 import { translations } from '../locales/ar';
+import { Logo } from './Logo';
 
 export const Footer: React.FC = () => {
   const t = translations.footer;
@@ -13,11 +14,8 @@ export const Footer: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-12">
           <div className="col-span-1 md:col-span-1">
-            <Link to="/" className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 bg-[#F59E0B] rounded-lg flex items-center justify-center">
-                <span className="text-white font-black text-lg">M</span>
-              </div>
-              <span className="text-xl font-black tracking-tighter text-white"><span className="text-[#F59E0B]">M</span>{common.appName.slice(1)}</span>
+            <Link to="/" className="mb-6 block">
+              <Logo variant="light" />
             </Link>
             <p className="text-sm leading-relaxed mb-6">
               {t.aboutText}
@@ -52,7 +50,7 @@ export const Footer: React.FC = () => {
           <div>
             <h4 className="text-white font-bold mb-6">{t.contactUs}</h4>
             <ul className="space-y-4 text-sm">
-              <li className="flex items-center gap-3 justify-end">support@m3allem.ma <Mail className="w-4 h-4" /></li>
+              <li className="flex items-center gap-3 justify-end">support@brekoul.ma <Mail className="w-4 h-4" /></li>
               <li className="flex items-center gap-3 justify-end">+212 522 00 00 00 <Phone className="w-4 h-4" /></li>
               <li className="mt-6">
                 <p className="font-bold text-white mb-2">{t.newsletter}</p>
@@ -70,7 +68,7 @@ export const Footer: React.FC = () => {
         </div>
         
         <div className="pt-8 border-t border-slate-800 text-center text-xs">
-          <p>&copy; {new Date().getFullYear()} {common.appName}. {t.rightsReserved}</p>
+          <p>&copy; {new Date().getFullYear()} Brekoul. {t.rightsReserved}</p>
         </div>
       </div>
     </footer>

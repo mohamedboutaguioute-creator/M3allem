@@ -84,7 +84,7 @@ export const Home: React.FC = () => {
               <span className="inline-block px-4 py-1.5 rounded-full bg-[#F59E0B]/10 text-[#F59E0B] text-sm font-bold mb-6">
                 #1 {t.appName} فالمغرب
               </span>
-              <h1 className="text-5xl md:text-7xl font-black text-slate-900 leading-[1.1] mb-8 tracking-tight">
+              <h1 className="text-5xl md:text-7xl font-display font-black text-slate-900 leading-[1.1] mb-8 tracking-tight">
                 {hero.title}
               </h1>
               <p className="text-xl text-slate-600 mb-10 leading-relaxed max-w-2xl">

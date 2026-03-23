@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { translations } from '../locales/ar';
 import { auth } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { Logo } from './Logo';
 
 export const Navbar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,11 +29,8 @@ export const Navbar: React.FC = () => {
     <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-[#1E3A8A] rounded-xl flex items-center justify-center group-hover:bg-[#F59E0B] transition-colors">
-              <span className="text-[#F59E0B] font-black text-xl">M</span>
-            </div>
-            <span className="text-xl font-black tracking-tighter text-slate-900"><span className="text-[#F59E0B]">M</span>{t.appName.slice(1)}</span>
+          <Link to="/">
+            <Logo />
           </Link>
 
           {/* Desktop Nav */}
