@@ -50,11 +50,12 @@ export const Navbar: React.FC = () => {
                   className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 px-4 py-2 rounded-xl text-sm font-bold text-slate-700 transition-all"
                 >
                   <LayoutDashboard className="w-4 h-4" />
-                  Dashboard
+                  {t.dashboard}
                 </Link>
                 <button 
                   onClick={handleSignOut}
                   className="flex items-center gap-2 text-slate-500 hover:text-red-500 transition-colors"
+                  title={t.signOut}
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -89,8 +90,8 @@ export const Navbar: React.FC = () => {
           )}
           {user ? (
             <>
-              <Link to="/dashboard" className="block w-full text-center bg-[#1E3A8A] text-white py-3 rounded-xl font-bold" onClick={() => setIsOpen(false)}>Dashboard</Link>
-              <button onClick={handleSignOut} className="block w-full text-center text-red-500 py-3 font-bold">Sign Out</button>
+              <Link to="/dashboard" className="block w-full text-center bg-[#1E3A8A] text-white py-3 rounded-xl font-bold" onClick={() => setIsOpen(false)}>{t.dashboard}</Link>
+              <button onClick={handleSignOut} className="block w-full text-center text-red-500 py-3 font-bold">{t.signOut}</button>
             </>
           ) : (
             <Link to="/auth" className="block w-full text-center bg-[#1E3A8A] text-white py-3 rounded-xl font-bold" onClick={() => setIsOpen(false)}>{t.signIn}</Link>

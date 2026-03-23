@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { 
   User, Mail, Phone, MapPin, Briefcase, Calendar, Shield, 
   Award, Image as ImageIcon, Edit2, Save, X, Plus, Trash2, 
-  CheckCircle, MessageCircle, Facebook, Globe, ExternalLink, Camera
+  CheckCircle, MessageCircle, Facebook, Globe, ExternalLink, Camera,
+  LayoutDashboard, LogOut, Star, DollarSign, Clock, CheckCircle2
 } from 'lucide-react';
 import { auth, db } from '../firebase';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { Handyman } from '../types';
@@ -27,48 +28,52 @@ export const ProfessionalProfile: React.FC = () => {
         return;
       }
 
-      // Fetch profile data
-      const publicRef = doc(db, 'professionals_public', user.uid);
-      const privateRef = doc(db, 'professionals_private', user.uid);
+      try {
+        // Fetch profile data
+        const publicRef = doc(db, 'professionals_public', user.uid);
+        const privateRef = doc(db, 'professionals_private', user.uid);
 
-      const [publicSnap, privateSnap] = await Promise.all([
-        getDoc(publicRef),
-        getDoc(privateRef)
-      ]);
+        const [publicSnap, privateSnap] = await Promise.all([
+          getDoc(publicRef),
+          getDoc(privateRef)
+        ]);
 
-      if (publicSnap.exists()) {
-        const publicData = publicSnap.data();
-        const privateData = privateSnap.exists() ? privateSnap.data() : {};
-        
-        const fullProfile: Handyman = {
-          id: user.uid,
-          full_name: publicData.fullName || '',
-          avatar_url: publicData.avatar_url || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=800&h=800&fit=crop',
-          category: publicData.speciality || 'General',
-          city: publicData.city || '',
-          rating: publicData.rating || 0,
-          review_count: publicData.review_count || 0,
-          is_verified: publicData.isVerified || false,
-          subscription_status: publicData.subscription_status || 'Free',
-          bio: publicData.bio || '',
-          whatsapp_number: publicData.whatsapp_number || '',
-          portfolio_images: publicData.portfolio_images || [],
-          created_at: publicData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-          years_of_experience: publicData.years_of_experience || 0,
-          skills: publicData.skills || [],
-          facebook_url: publicData.facebook_url || '',
-          address: privateData.address || '',
-          zipcode: privateData.zipcode || '',
-          price: publicData.price || 0
-        };
+        if (publicSnap.exists()) {
+          const publicData = publicSnap.data();
+          const privateData = privateSnap.exists() ? privateSnap.data() : {};
+          
+          const fullProfile: Handyman = {
+            id: user.uid,
+            full_name: publicData.fullName || '',
+            avatar_url: publicData.avatar_url || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=800&h=800&fit=crop',
+            category: publicData.speciality || 'General',
+            city: publicData.city || '',
+            rating: publicData.rating || 0,
+            review_count: publicData.review_count || 0,
+            is_verified: publicData.isVerified || false,
+            subscription_status: publicData.subscription_status || 'Free',
+            bio: publicData.bio || '',
+            whatsapp_number: publicData.whatsapp_number || '',
+            portfolio_images: publicData.portfolio_images || [],
+            created_at: publicData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            years_of_experience: publicData.years_of_experience || 0,
+            skills: publicData.skills || [],
+            facebook_url: publicData.facebook_url || '',
+            address: privateData.address || '',
+            zipcode: privateData.zipcode || '',
+            price: publicData.price || 0
+          };
 
-        setProfile(fullProfile);
-        setEditData(fullProfile);
-      } else {
-        // If profile doesn't exist in professionals_public, maybe they haven't completed it
-        navigate('/complete-profile');
+          setProfile(fullProfile);
+          setEditData(fullProfile);
+        } else {
+          navigate('/complete-profile');
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -104,7 +109,7 @@ export const ProfessionalProfile: React.FC = () => {
         updateDoc(privateRef, privateUpdate)
       ]);
 
-      setProfile({ ...profile, ...editData });
+      setProfile({ ...profile, ...editData } as Handyman);
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -142,11 +147,16 @@ export const ProfessionalProfile: React.FC = () => {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-slate-50 pb-20 text-right" dir="rtl">
       {/* Header / Cover */}
-      <div className="h-64 bg-[#1E3A8A] relative">
+      <div className="h-64 bg-[#1E3A8A] relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-white rounded-full translate-y-1/2 -translate-x-1/2" />
+        </div>
+        
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full relative">
-          <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 md:left-8 md:translate-x-0 w-full flex flex-col md:flex-row items-end gap-6">
+          <div className="absolute -bottom-20 right-4 sm:right-8 left-4 sm:left-8 flex flex-col md:flex-row items-center md:items-end gap-6">
             {/* Profile Image with Upload Overlay */}
             <div className="relative group">
               <div className="w-32 h-32 md:w-44 md:h-44 rounded-[2.5rem] border-4 border-white overflow-hidden shadow-2xl bg-white">
@@ -164,20 +174,25 @@ export const ProfessionalProfile: React.FC = () => {
               )}
             </div>
 
-            <div className="flex-1 pb-4 text-center md:text-left">
-              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-3">
+            <div className="flex-1 pb-4 text-center md:text-right">
+              <div className="flex flex-col md:flex-row md:items-center justify-center md:justify-start gap-2 md:gap-4 mb-3">
                 {isEditing ? (
                   <input 
                     type="text"
                     value={editData.full_name}
                     onChange={(e) => setEditData({ ...editData, full_name: e.target.value })}
-                    className="text-3xl font-black text-slate-900 bg-white border-2 border-slate-200 rounded-xl px-4 py-1 outline-none focus:border-[#F59E0B]"
+                    className="text-3xl font-black text-slate-900 bg-white border-2 border-slate-200 rounded-xl px-4 py-1 outline-none focus:border-[#F59E0B] text-right"
                   />
                 ) : (
-                  <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+                  <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center justify-center md:justify-start gap-3">
                     {profile.full_name}
                     {profile.is_verified && (
-                      <CheckCircle className="w-6 h-6 text-emerald-500 fill-emerald-50" />
+                      <div className="group relative">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500 fill-emerald-50" />
+                        <div className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 px-3 py-1 bg-slate-900 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          رقم الهاتف مفعل
+                        </div>
+                      </div>
                     )}
                   </h1>
                 )}
@@ -190,13 +205,13 @@ export const ProfessionalProfile: React.FC = () => {
                     <select 
                       value={editData.category}
                       onChange={(e) => setEditData({ ...editData, category: e.target.value as any })}
-                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none"
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none text-right"
                     >
-                      <option value="Electricity">Electricity</option>
-                      <option value="Plumbing">Plumbing</option>
-                      <option value="Construction">Construction</option>
-                      <option value="Painting">Painting</option>
-                      <option value="Carpentry">Carpentry</option>
+                      <option value="Electricity">كهرباء</option>
+                      <option value="Plumbing">رصاصة</option>
+                      <option value="Construction">بناء</option>
+                      <option value="Painting">صباغة</option>
+                      <option value="Carpentry">نجارة</option>
                     </select>
                   ) : (
                     profile.category
@@ -209,7 +224,7 @@ export const ProfessionalProfile: React.FC = () => {
                       type="text"
                       value={editData.city}
                       onChange={(e) => setEditData({ ...editData, city: e.target.value })}
-                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none"
+                      className="bg-white border border-slate-200 rounded-lg px-2 py-1 outline-none text-right"
                     />
                   ) : (
                     profile.city
@@ -225,14 +240,14 @@ export const ProfessionalProfile: React.FC = () => {
                     onClick={() => setIsEditing(false)}
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-100 text-slate-600 px-6 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-all"
                   >
-                    <X className="w-5 h-5" /> Cancel
+                    <X className="w-5 h-5" /> إلغاء
                   </button>
                   <button 
                     onClick={handleSave}
                     disabled={saving}
                     className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#1E3A8A] text-white px-8 py-4 rounded-2xl font-black text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98] disabled:opacity-70"
                   >
-                    <Save className="w-5 h-5" /> {saving ? 'Saving...' : 'Save Changes'}
+                    <Save className="w-5 h-5" /> {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
                   </button>
                 </>
               ) : (
@@ -240,7 +255,7 @@ export const ProfessionalProfile: React.FC = () => {
                   onClick={() => setIsEditing(true)}
                   className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#F59E0B] text-white px-8 py-4 rounded-2xl font-black text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
                 >
-                  <Edit2 className="w-5 h-5" /> Edit Profile
+                  <Edit2 className="w-5 h-5" /> تعديل الملف
                 </button>
               )}
             </div>
@@ -256,19 +271,19 @@ export const ProfessionalProfile: React.FC = () => {
             <section className="bg-white p-8 md:p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
               <h2 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
                 <div className="w-2 h-8 bg-[#F59E0B] rounded-full" />
-                Professional Bio
+                نبذة مهنية
               </h2>
               {isEditing ? (
                 <textarea 
                   value={editData.bio}
                   onChange={(e) => setEditData({ ...editData, bio: e.target.value })}
                   rows={6}
-                  className="w-full p-6 bg-slate-50 border-2 border-transparent rounded-3xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none resize-none text-slate-600 leading-relaxed"
-                  placeholder="Describe your experience and services..."
+                  className="w-full p-6 bg-slate-50 border-2 border-transparent rounded-3xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none resize-none text-slate-600 leading-relaxed text-right"
+                  placeholder="وصف خبرتك والخدمات اللي كتقدم..."
                 />
               ) : (
                 <p className="text-slate-600 leading-relaxed text-lg">
-                  {profile.bio || "No bio added yet. Click edit to tell customers about yourself!"}
+                  {profile.bio || "مازال ما ضفتي حتى نبذة. ضغط على تعديل باش تعرف الزبناء بيك!"}
                 </p>
               )}
             </section>
@@ -277,7 +292,7 @@ export const ProfessionalProfile: React.FC = () => {
             <section className="bg-white p-8 md:p-10 rounded-[2.5rem] border border-slate-100 shadow-sm">
               <h2 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
                 <div className="w-2 h-8 bg-[#F59E0B] rounded-full" />
-                Skills & Specializations
+                المهارات والتخصصات
               </h2>
               
               <div className="flex flex-wrap gap-3 mb-6">
@@ -306,8 +321,8 @@ export const ProfessionalProfile: React.FC = () => {
                     value={newSkill}
                     onChange={(e) => setNewSkill(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && addSkill()}
-                    placeholder="Add a skill (e.g. Solar Panels)"
-                    className="flex-1 px-6 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
+                    placeholder="ضيف مهارة (مثال: تركيب ألواح شمسية)"
+                    className="flex-1 px-6 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none text-right"
                   />
                   <button 
                     onClick={addSkill}
@@ -324,11 +339,11 @@ export const ProfessionalProfile: React.FC = () => {
               <div className="flex justify-between items-center mb-8">
                 <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
                   <div className="w-2 h-8 bg-[#F59E0B] rounded-full" />
-                  Work Portfolio
+                  معرض الأعمال
                 </h2>
                 {isEditing && (
                   <button className="text-[#1E3A8A] font-bold flex items-center gap-2 hover:underline">
-                    <Plus className="w-4 h-4" /> Add Photos
+                    <Plus className="w-4 h-4" /> إضافة صور
                   </button>
                 )}
               </div>
@@ -338,7 +353,7 @@ export const ProfessionalProfile: React.FC = () => {
                   <div key={idx} className="aspect-square rounded-3xl overflow-hidden border border-slate-100 relative group">
                     <img 
                       src={img} 
-                      alt={`Work ${idx + 1}`} 
+                      alt={`عمل ${idx + 1}`} 
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
@@ -352,7 +367,7 @@ export const ProfessionalProfile: React.FC = () => {
                 {isEditing && (
                   <button className="aspect-square rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-[#F59E0B] hover:text-[#F59E0B] transition-all">
                     <ImageIcon className="w-8 h-8 mb-2" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Upload</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">تحميل</span>
                   </button>
                 )}
               </div>
@@ -363,26 +378,26 @@ export const ProfessionalProfile: React.FC = () => {
           <div className="space-y-8">
             {/* Core Details Card */}
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-              <h3 className="text-xl font-black text-slate-900 mb-8">Professional Details</h3>
+              <h3 className="text-xl font-black text-slate-900 mb-8">تفاصيل مهنية</h3>
               <div className="space-y-8">
                 <div className="flex items-center gap-5">
                   <div className="w-14 h-14 bg-blue-50 rounded-[1.25rem] flex items-center justify-center">
-                    <Calendar className="w-7 h-7 text-[#1E3A8A]" />
+                    <Clock className="w-7 h-7 text-[#1E3A8A]" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Experience</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">الخبرة</p>
                     {isEditing ? (
                       <div className="flex items-center gap-2">
                         <input 
                           type="number"
                           value={editData.years_of_experience}
                           onChange={(e) => setEditData({ ...editData, years_of_experience: Number(e.target.value) })}
-                          className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none"
+                          className="w-20 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none text-right"
                         />
-                        <span className="font-bold text-slate-900">Years</span>
+                        <span className="font-bold text-slate-900">سنوات</span>
                       </div>
                     ) : (
-                      <p className="font-black text-slate-900 text-lg">{profile.years_of_experience} Years</p>
+                      <p className="font-black text-slate-900 text-lg">{profile.years_of_experience} سنوات</p>
                     )}
                   </div>
                 </div>
@@ -392,9 +407,9 @@ export const ProfessionalProfile: React.FC = () => {
                     <Shield className="w-7 h-7 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Verification</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">التوثيق</p>
                     <p className="font-black text-slate-900 text-lg">
-                      {profile.is_verified ? 'Verified Pro' : 'Pending Verification'}
+                      {profile.is_verified ? 'حريفي موثق' : 'قيد التوثيق'}
                     </p>
                   </div>
                 </div>
@@ -404,19 +419,19 @@ export const ProfessionalProfile: React.FC = () => {
                     <DollarSign className="w-7 h-7 text-amber-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">Service Price</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1">ثمن الخدمة</p>
                     {isEditing ? (
                       <div className="flex items-center gap-2">
                         <input 
                           type="number"
                           value={editData.price}
                           onChange={(e) => setEditData({ ...editData, price: Number(e.target.value) })}
-                          className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none"
+                          className="w-24 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none text-right"
                         />
-                        <span className="font-bold text-slate-900">DH/hr</span>
+                        <span className="font-bold text-slate-900">درهم/ساعة</span>
                       </div>
                     ) : (
-                      <p className="font-black text-slate-900 text-lg">{profile.price} DH/hr</p>
+                      <p className="font-black text-slate-900 text-lg">{profile.price} درهم/ساعة</p>
                     )}
                   </div>
                 </div>
@@ -425,13 +440,13 @@ export const ProfessionalProfile: React.FC = () => {
 
             {/* Contact Card */}
             <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm">
-              <h3 className="text-xl font-black text-slate-900 mb-8">Contact & Connectivity</h3>
+              <h3 className="text-xl font-black text-slate-900 mb-8">التواصل والروابط</h3>
               <div className="space-y-4">
                 <a 
                   href={`tel:${profile.whatsapp_number}`}
                   className="w-full flex items-center justify-center gap-3 bg-[#1E3A8A] text-white py-5 rounded-2xl font-black text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
                 >
-                  <Phone className="w-6 h-6" /> Call Now
+                  <Phone className="w-6 h-6" /> اتصل الآن
                 </a>
                 <a 
                   href={`https://wa.me/${profile.whatsapp_number.replace(/\D/g, '')}`}
@@ -439,13 +454,18 @@ export const ProfessionalProfile: React.FC = () => {
                   rel="noopener noreferrer"
                   className="w-full flex items-center justify-center gap-3 bg-[#25D366] text-white py-5 rounded-2xl font-black text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
                 >
-                  <MessageCircle className="w-6 h-6 fill-white" /> WhatsApp
+                  <MessageCircle className="w-6 h-6 fill-white" /> واتساب
                 </a>
+                <button 
+                  className="w-full flex items-center justify-center gap-3 bg-slate-900 text-white py-5 rounded-2xl font-black text-lg shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+                >
+                  <Mail className="w-6 h-6" /> إرسال رسالة
+                </button>
               </div>
 
               <div className="mt-10 pt-8 border-t border-slate-100 space-y-6">
                 <div className="space-y-4">
-                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Social Links</p>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">روابط اجتماعية</p>
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
                       <Facebook className="w-5 h-5 text-blue-600" />
@@ -454,8 +474,8 @@ export const ProfessionalProfile: React.FC = () => {
                           type="text"
                           value={editData.facebook_url}
                           onChange={(e) => setEditData({ ...editData, facebook_url: e.target.value })}
-                          placeholder="Facebook Page URL"
-                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none"
+                          placeholder="رابط صفحة فيسبوك"
+                          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none text-right"
                         />
                       ) : (
                         <a 
@@ -464,7 +484,7 @@ export const ProfessionalProfile: React.FC = () => {
                           rel="noopener noreferrer"
                           className="text-sm font-bold text-[#1E3A8A] hover:underline flex items-center gap-1"
                         >
-                          {profile.facebook_url ? 'Facebook Page' : 'Not linked'}
+                          {profile.facebook_url ? 'صفحة فيسبوك' : 'غير متصل'}
                           {profile.facebook_url && <ExternalLink className="w-3 h-3" />}
                         </a>
                       )}
@@ -479,21 +499,3 @@ export const ProfessionalProfile: React.FC = () => {
     </div>
   );
 };
-
-const DollarSign = ({ className }: { className?: string }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="24" 
-    height="24" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={className}
-  >
-    <line x1="12" y1="1" x2="12" y2="23"></line>
-    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-  </svg>
-);

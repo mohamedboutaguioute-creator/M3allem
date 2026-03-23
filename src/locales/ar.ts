@@ -11,6 +11,8 @@ export const translations = {
     verifiedPro: "حريفي معقول وموثوق",
     callNow: "اتصل دابا",
     successMessage: "الطلب ديالك وصل، الحريفي غيتواصل معاك",
+    dashboard: "لوحة التحكم",
+    signOut: "تسجيل الخروج",
   },
   hero: {
     title: "لقا أحسن حريفي قريب ليك فمدينتك",
