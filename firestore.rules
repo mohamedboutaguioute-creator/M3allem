@@ -79,8 +79,8 @@ service cloud.firestore {
     // ===============================================================
 
     match /professionals_public/{professionalId} {
-      // Public can read verified professionals
-      allow read: if resource.data.isVerified == true || isOwner(professionalId) || isAdmin();
+      // Public can read professional profiles
+      allow read: if true;
       
       allow create: if isOwner(professionalId) && 
                       isValidProfessionalPublic(request.resource.data) && 
