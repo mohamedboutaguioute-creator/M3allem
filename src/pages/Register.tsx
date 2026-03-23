@@ -1,136 +1,208 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Phone, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Lock } from 'lucide-react';
+import { Mail, Phone, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Lock, User, Calendar, MapPin, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 
-type Step = 'email' | 'password' | 'phone' | 'success';
+type Step = 'signup' | 'phone' | 'otp' | 'profile' | 'success';
 
 export const Register: React.FC = () => {
-  const [step, setStep] = useState<Step>('email');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
+  const [step, setStep] = useState<Step>('signup');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email) setStep('password');
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    phone: '',
+    otp: ['', '', '', '', '', ''],
+    dob: '',
+    gender: '',
+    city: ''
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handlePasswordSubmit = (e: React.FormEvent) => {
+  const handleSignupSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length >= 6) setStep('phone');
-    else setError('Password must be at least 6 characters.');
-  };
-
-  const handleRegistration = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (phone) {
-      setLoading(true);
+    if (formData.fullName && formData.email && formData.password.length >= 6) {
+      setStep('phone');
       setError(null);
-      try {
-        await createUserWithEmailAndPassword(auth, email, password);
-        setLoading(false);
-        setStep('success');
-        // We'll pass the phone to the next page via state or just let them enter it again if needed
-        // But the CompleteProfile page already expects it in state
-      } catch (err: any) {
-        console.error('Firebase Auth Error:', err);
-        setLoading(false);
-        
-        let message = 'Failed to create account. Please try again.';
-        if (err.code === 'auth/email-already-in-use') message = 'This email is already registered.';
-        if (err.code === 'auth/invalid-email') message = 'Invalid email format.';
-        if (err.code === 'auth/weak-password') message = 'Password is too weak.';
-        if (err.message) message = err.message;
-        
-        setError(message);
-      }
+    } else if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+    }
+  };
+
+  const handlePhoneSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.phone) {
+      // In a real app with "remove captcha" requirement, we might use a different service
+      // or a simulated OTP for the UI flow if Firebase Phone Auth is not desired due to reCAPTCHA.
+      // For this UI-focused request, we'll move to the OTP entry step.
+      setStep('otp');
+      setError(null);
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) value = value[value.length - 1];
+    const newOtp = [...formData.otp];
+    newOtp[index] = value;
+    setFormData(prev => ({ ...prev, otp: newOtp }));
+
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handleOtpVerify = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (formData.otp.every(v => v !== '')) {
+      setStep('profile');
+      setError(null);
+    }
+  };
+
+  const handleFinalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 1. Create User in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const uid = userCredential.user.uid;
+
+      // 2. Consolidate Data for API/Firestore
+      const consolidatedData = {
+        uid,
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: `+212${formData.phone.replace(/\s/g, '')}`,
+        dob: formData.dob,
+        gender: formData.gender,
+        city: formData.city,
+        createdAt: serverTimestamp(),
+        role: 'professional', // Default role
+        isVerified: false
+      };
+
+      console.log('Final Registration Data:', consolidatedData);
+
+      // 3. Save to Firestore (Atomic Batch)
+      const batch = writeBatch(db);
+      
+      // Public Profile
+      const publicRef = doc(db, 'professionals_public', uid);
+      batch.set(publicRef, {
+        uid,
+        fullName: consolidatedData.fullName,
+        city: consolidatedData.city,
+        whatsapp_number: consolidatedData.phone,
+        createdAt: consolidatedData.createdAt,
+        role: consolidatedData.role,
+        isVerified: consolidatedData.isVerified,
+        speciality: 'General', // Placeholder for later update
+        price: 0 // Placeholder
+      });
+
+      // Private Data
+      const privateRef = doc(db, 'professionals_private', uid);
+      batch.set(privateRef, {
+        email: consolidatedData.email,
+        dob: consolidatedData.dob,
+        gender: consolidatedData.gender,
+      });
+
+      await batch.commit();
+      
+      setLoading(false);
+      setStep('success');
+    } catch (err: any) {
+      console.error('Registration Error:', err);
+      setLoading(false);
+      let message = 'Failed to create account. Please try again.';
+      if (err.code === 'auth/email-already-in-use') message = 'This email is already registered.';
+      setError(message);
     }
   };
 
   const renderStep = () => {
     switch (step) {
-      case 'email':
+      case 'signup':
         return (
           <motion.div
-            key="email"
+            key="signup"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             className="space-y-6"
           >
             <div className="space-y-2">
-              <h2 className="text-2xl font-black text-slate-900">Let's start with your email</h2>
-              <p className="text-slate-500">We'll use this to send you important updates.</p>
+              <h2 className="text-2xl font-black text-slate-900">Create your account</h2>
+              <p className="text-slate-500">Join the M3ALLEM community today.</p>
             </div>
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
-                />
+            <form onSubmit={handleSignupSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Full Name</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    name="fullName"
+                    required
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    placeholder="Ahmed El Mansouri"
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
+                  />
+                </div>
               </div>
-              <button
-                type="submit"
-                className="w-full bg-[#1E3A8A] text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 hover:shadow-lg transition-all active:scale-[0.98]"
-              >
-                Continue <ArrowRight className="w-5 h-5" />
-              </button>
-            </form>
-          </motion.div>
-        );
-      case 'password':
-        return (
-          <motion.div
-            key="password"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            className="space-y-6"
-          >
-            <div className="space-y-2">
-              <button 
-                onClick={() => setStep('email')}
-                className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-[#1E3A8A] transition-colors mb-4"
-              >
-                <ArrowLeft className="w-4 h-4" /> Back to Email
-              </button>
-              <h2 className="text-2xl font-black text-slate-900">Create a password</h2>
-              <p className="text-slate-500">Make sure it's at least 6 characters long.</p>
-            </div>
-            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
-                />
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="email"
+                    name="email"
+                    required
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="name@example.com"
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="password"
+                    name="password"
+                    required
+                    minLength={6}
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
+                  />
+                </div>
               </div>
               {error && (
                 <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium">
                   {error}
                 </div>
               )}
-              <button
-                type="submit"
-                className="w-full bg-[#1E3A8A] text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 hover:shadow-lg transition-all active:scale-[0.98]"
-              >
+              <button type="submit" className="btn-primary w-full py-4 text-lg flex items-center justify-center gap-2">
                 Continue <ArrowRight className="w-5 h-5" />
               </button>
             </form>
@@ -146,47 +218,158 @@ export const Register: React.FC = () => {
             className="space-y-6"
           >
             <div className="space-y-2">
-              <button 
-                onClick={() => setStep('password')}
-                className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-[#1E3A8A] transition-colors mb-4"
-              >
-                <ArrowLeft className="w-4 h-4" /> Back to Password
+              <button onClick={() => setStep('signup')} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-[#1E3A8A] transition-colors mb-4">
+                <ArrowLeft className="w-4 h-4" /> Back
               </button>
-              <h2 className="text-2xl font-black text-slate-900">What's your phone number?</h2>
-              <p className="text-slate-500">Customers will use this to contact you.</p>
+              <h2 className="text-2xl font-black text-slate-900">Phone Verification</h2>
+              <p className="text-slate-500">Enter your phone number to receive a code.</p>
             </div>
-            <form onSubmit={handleRegistration} className="space-y-4">
+            <form onSubmit={handlePhoneSubmit} className="space-y-4">
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <div className="flex items-center">
                   <span className="absolute left-12 text-slate-900 font-bold">+212</span>
                   <input
                     type="tel"
+                    name="phone"
                     required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    value={formData.phone}
+                    onChange={handleChange}
                     placeholder="6 00 00 00 00"
                     className="w-full pl-24 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
                   />
                 </div>
               </div>
-
+              <button type="submit" className="btn-primary w-full py-4 text-lg flex items-center justify-center gap-2">
+                Send Code <ArrowRight className="w-5 h-5" />
+              </button>
+            </form>
+          </motion.div>
+        );
+      case 'otp':
+        return (
+          <motion.div
+            key="otp"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="space-y-2">
+              <button onClick={() => setStep('phone')} className="flex items-center gap-1 text-sm font-bold text-slate-400 hover:text-[#1E3A8A] transition-colors mb-4">
+                <ArrowLeft className="w-4 h-4" /> Change Number
+              </button>
+              <h2 className="text-2xl font-black text-slate-900">Verify Code</h2>
+              <p className="text-slate-500">Enter the 6-digit code sent to your phone.</p>
+            </div>
+            <form onSubmit={handleOtpVerify} className="space-y-8">
+              <div className="flex justify-between gap-2">
+                {formData.otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    id={`otp-${i}`}
+                    type="text"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(i, e.target.value)}
+                    className="w-12 h-16 text-center text-2xl font-black bg-slate-50 border-2 border-transparent rounded-xl focus:border-[#F59E0B] focus:bg-white transition-all outline-none"
+                  />
+                ))}
+              </div>
+              <div className="space-y-4">
+                <button 
+                  type="submit" 
+                  disabled={formData.otp.some(v => v === '')}
+                  className={cn("btn-accent w-full py-4 text-lg flex items-center justify-center gap-2", formData.otp.some(v => v === '') && "opacity-70")}
+                >
+                  Verify <ShieldCheck className="w-5 h-5" />
+                </button>
+                <p className="text-center text-sm text-slate-500">
+                  Didn't receive the code? <button type="button" className="font-bold text-[#1E3A8A] hover:underline">Resend</button>
+                </p>
+              </div>
+            </form>
+          </motion.div>
+        );
+      case 'profile':
+        return (
+          <motion.div
+            key="profile"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black text-slate-900">Complete Profile</h2>
+              <p className="text-slate-500">Just a few more details to get started.</p>
+            </div>
+            <form onSubmit={handleFinalSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Date of Birth</label>
+                <div className="relative">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="date"
+                    name="dob"
+                    required
+                    value={formData.dob}
+                    onChange={handleChange}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Gender</label>
+                <div className="relative">
+                  <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <select
+                    name="gender"
+                    required
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none appearance-none"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">City</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <select
+                    name="city"
+                    required
+                    value={formData.city}
+                    onChange={handleChange}
+                    className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none appearance-none"
+                  >
+                    <option value="">Select City</option>
+                    <option value="Casablanca">Casablanca</option>
+                    <option value="Marrakech">Marrakech</option>
+                    <option value="Rabat">Rabat</option>
+                    <option value="Tangier">Tangier</option>
+                    <option value="Agadir">Agadir</option>
+                    <option value="Fes">Fes</option>
+                  </select>
+                </div>
+              </div>
               {error && (
                 <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium">
                   {error}
                 </div>
               )}
-
-              <button
-                type="submit"
+              <button 
+                type="submit" 
                 disabled={loading}
-                className={cn(
-                  "w-full bg-[#1E3A8A] text-white py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 hover:shadow-lg transition-all active:scale-[0.98]",
-                  loading && "opacity-70 cursor-not-allowed"
-                )}
+                className={cn("btn-accent w-full py-4 text-lg flex items-center justify-center gap-2", loading && "opacity-70")}
               >
-                {loading ? "Creating Account..." : "Create Account"}
-                {!loading && <ArrowRight className="w-5 h-5" />}
+                {loading ? "Creating Account..." : "Complete Registration"}
+                {!loading && <ShieldCheck className="w-5 h-5" />}
               </button>
             </form>
           </motion.div>
@@ -203,14 +386,11 @@ export const Register: React.FC = () => {
               <CheckCircle2 className="w-12 h-12" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black text-slate-900">Account Created!</h2>
-              <p className="text-slate-500">Welcome to M3ALLEM. Your account has been successfully created.</p>
+              <h2 className="text-3xl font-black text-slate-900">Welcome!</h2>
+              <p className="text-slate-500">Your account has been successfully created. You can now start using M3ALLEM.</p>
             </div>
-            <button
-              onClick={() => navigate('/complete-profile', { state: { email, phone: `+212${phone.replace(/\s/g, '')}` } })}
-              className="w-full bg-[#1E3A8A] text-white py-4 rounded-2xl font-black text-lg hover:shadow-lg transition-all"
-            >
-              Complete Your Profile
+            <button onClick={() => navigate('/')} className="btn-primary w-full py-4 text-lg">
+              Go to Dashboard
             </button>
           </motion.div>
         );
@@ -220,7 +400,6 @@ export const Register: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 py-20">
       <div className="max-w-md w-full">
-        {/* Logo */}
         <Link to="/" className="flex items-center justify-center gap-2 mb-12 group">
           <div className="w-10 h-10 bg-[#1E3A8A] rounded-xl flex items-center justify-center group-hover:bg-[#F59E0B] transition-colors">
             <span className="text-white font-black text-xl">M</span>
@@ -229,15 +408,15 @@ export const Register: React.FC = () => {
         </Link>
 
         <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-          {/* Progress Bar */}
           <div className="flex h-1.5 bg-slate-100">
             <motion.div 
               className="bg-[#F59E0B]"
               initial={{ width: "0%" }}
               animate={{ 
-                width: step === 'email' ? '25%' : 
-                       step === 'password' ? '50%' : 
-                       step === 'phone' ? '75%' : '100%' 
+                width: step === 'signup' ? '20%' : 
+                       step === 'phone' ? '40%' : 
+                       step === 'otp' ? '60%' : 
+                       step === 'profile' ? '80%' : '100%' 
               }}
               transition={{ duration: 0.5 }}
             />
