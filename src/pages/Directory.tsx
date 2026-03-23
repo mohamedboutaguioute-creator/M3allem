@@ -6,86 +6,17 @@ import { Handyman, Category } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../lib/utils';
 import { translations } from '../locales/ar';
-
-const MOCK_PROS: Handyman[] = [
-  {
-    id: '1',
-    full_name: 'Ahmed El Mansouri',
-    avatar_url: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=400&h=300&fit=crop',
-    category: 'Electricity',
-    city: 'Casablanca',
-    rating: 4.9,
-    review_count: 124,
-    is_verified: true,
-    subscription_status: 'Premium',
-    bio: 'Certified electrician with 10+ years of experience in residential and commercial wiring.',
-    whatsapp_number: '+212600000000',
-    created_at: '2024-01-01'
-  },
-  {
-    id: '2',
-    full_name: 'Youssef Benali',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop',
-    category: 'Plumbing',
-    city: 'Marrakech',
-    rating: 4.8,
-    review_count: 89,
-    is_verified: true,
-    subscription_status: 'Free',
-    bio: 'Expert plumber specializing in leak detection, bathroom renovations, and emergency repairs.',
-    whatsapp_number: '+212600000001',
-    created_at: '2024-02-01'
-  },
-  {
-    id: '3',
-    full_name: 'Mustapha Alami',
-    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=300&fit=crop',
-    category: 'Construction',
-    city: 'Rabat',
-    rating: 4.7,
-    review_count: 56,
-    is_verified: false,
-    subscription_status: 'Free',
-    bio: 'Professional builder and mason. High-quality construction and renovation services.',
-    whatsapp_number: '+212600000002',
-    created_at: '2024-03-01'
-  },
-  {
-    id: '4',
-    full_name: 'Fatima Zahra',
-    avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=300&fit=crop',
-    category: 'Painting',
-    city: 'Casablanca',
-    rating: 5.0,
-    review_count: 42,
-    is_verified: true,
-    subscription_status: 'Premium',
-    bio: 'Interior design and professional painting services. Bringing color to your home.',
-    whatsapp_number: '+212600000003',
-    created_at: '2024-03-15'
-  },
-  {
-    id: '5',
-    full_name: 'Karim Idrissi',
-    avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=300&fit=crop',
-    category: 'Carpentry',
-    city: 'Tangier',
-    rating: 4.6,
-    review_count: 28,
-    is_verified: true,
-    subscription_status: 'Free',
-    bio: 'Custom furniture and wood repairs. Traditional and modern Moroccan styles.',
-    whatsapp_number: '+212600000004',
-    created_at: '2024-03-20'
-  }
-];
+import { db } from '../firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 
 const CATEGORIES: Category[] = ['Electricity', 'Plumbing', 'Construction', 'Painting', 'Carpentry'];
 const CITIES = ['Casablanca', 'Marrakech', 'Rabat', 'Tangier', 'Agadir', 'Fes'];
 
 export const Directory: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filteredPros, setFilteredPros] = useState<Handyman[]>(MOCK_PROS);
+  const [allPros, setAllPros] = useState<Handyman[]>([]);
+  const [filteredPros, setFilteredPros] = useState<Handyman[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const t = translations.common;
   const cats = translations.categories;
@@ -95,7 +26,41 @@ export const Directory: React.FC = () => {
   const city = searchParams.get('city') || '';
 
   useEffect(() => {
-    let results = MOCK_PROS;
+    const fetchPros = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'professionals_public'));
+        const pros: Handyman[] = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            full_name: data.fullName || '',
+            avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=400&h=300&fit=crop',
+            category: data.speciality || 'General',
+            city: data.city || '',
+            rating: data.rating || 0,
+            review_count: data.review_count || 0,
+            is_verified: data.isVerified || false,
+            subscription_status: data.subscription_status || 'Free',
+            bio: data.bio || '',
+            whatsapp_number: data.whatsapp_number || '',
+            created_at: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            years_of_experience: data.years_of_experience || 0,
+            price: data.price || 0
+          };
+        });
+        setAllPros(pros);
+      } catch (error) {
+        console.error('Error fetching professionals:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPros();
+  }, []);
+
+  useEffect(() => {
+    let results = allPros;
 
     if (q) {
       results = results.filter(p => 
@@ -105,7 +70,7 @@ export const Directory: React.FC = () => {
     }
 
     if (cat) {
-      results = results.filter(p => p.category === cat);
+      results = results.filter(p => p.category.toLowerCase() === cat.toLowerCase());
     }
 
     if (city) {
@@ -113,7 +78,7 @@ export const Directory: React.FC = () => {
     }
 
     setFilteredPros(results);
-  }, [q, cat, city]);
+  }, [q, cat, city, allPros]);
 
   const updateFilter = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -124,6 +89,14 @@ export const Directory: React.FC = () => {
     }
     setSearchParams(newParams);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1E3A8A]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pt-8 pb-20 text-right">

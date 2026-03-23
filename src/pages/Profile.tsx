@@ -1,55 +1,63 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Star, MapPin, CheckCircle, MessageCircle, ArrowLeft, Calendar, Shield, Award, Image as ImageIcon } from 'lucide-react';
 import { Handyman, Review } from '../types';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/utils';
-
-const MOCK_PROS: Record<string, Handyman> = {
-  '1': {
-    id: '1',
-    full_name: 'Ahmed El Mansouri',
-    avatar_url: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=800&h=800&fit=crop',
-    category: 'Electricity',
-    city: 'Casablanca',
-    rating: 4.9,
-    review_count: 124,
-    is_verified: true,
-    subscription_status: 'Premium',
-    bio: 'Certified electrician with 10+ years of experience in residential and commercial wiring. I specialize in smart home installations, electrical panel upgrades, and emergency troubleshooting. My goal is to provide safe, efficient, and reliable electrical solutions for your home or business.',
-    whatsapp_number: '+212600000000',
-    created_at: '2024-01-01',
-    portfolio_images: [
-      'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=600&h=400&fit=crop',
-      'https://images.unsplash.com/photo-1558227691-41ea78d1f631?w=600&h=400&fit=crop',
-      'https://images.unsplash.com/photo-1565004814542-815006655cd7?w=600&h=400&fit=crop',
-      'https://images.unsplash.com/photo-1581092160562-40aa08e78837?w=600&h=400&fit=crop'
-    ]
-  }
-};
-
-const MOCK_REVIEWS: Review[] = [
-  {
-    id: 'r1',
-    handyman_id: '1',
-    customer_name: 'Sara K.',
-    rating: 5,
-    comment: 'Ahmed was very professional and fixed our electrical issue in no time. Highly recommended!',
-    created_at: '2024-03-15'
-  },
-  {
-    id: 'r2',
-    handyman_id: '1',
-    customer_name: 'Omar D.',
-    rating: 4,
-    comment: 'Great service, arrived on time. A bit expensive but worth the quality.',
-    created_at: '2024-03-10'
-  }
-];
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 export const Profile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const handyman = id ? MOCK_PROS[id] : null;
+  const [handyman, setHandyman] = useState<Handyman | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!id) return;
+      try {
+        const docRef = doc(db, 'professionals_public', id);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setHandyman({
+            id: docSnap.id,
+            full_name: data.fullName || '',
+            avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=800&h=800&fit=crop',
+            category: data.speciality || 'General',
+            city: data.city || '',
+            rating: data.rating || 0,
+            review_count: data.review_count || 0,
+            is_verified: data.isVerified || false,
+            subscription_status: data.subscription_status || 'Free',
+            bio: data.bio || '',
+            whatsapp_number: data.whatsapp_number || '',
+            portfolio_images: data.portfolio_images || [],
+            created_at: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            years_of_experience: data.years_of_experience || 0,
+            skills: data.skills || [],
+            facebook_url: data.facebook_url || '',
+            price: data.price || 0
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1E3A8A]"></div>
+      </div>
+    );
+  }
 
   if (!handyman) {
     return (
@@ -128,12 +136,29 @@ export const Profile: React.FC = () => {
                 About Me
               </h2>
               <p className="text-slate-600 leading-relaxed text-lg bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                {handyman.bio}
+                {handyman.bio || "No bio provided yet."}
               </p>
             </section>
 
+            {/* Skills */}
+            {handyman.skills && handyman.skills.length > 0 && (
+              <section>
+                <h2 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
+                  <div className="w-2 h-8 bg-[#F59E0B] rounded-full" />
+                  Skills & Specializations
+                </h2>
+                <div className="flex flex-wrap gap-3 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                  {handyman.skills.map((skill, idx) => (
+                    <span key={idx} className="bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold text-sm border border-slate-100">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Portfolio */}
-            {handyman.portfolio_images && (
+            {handyman.portfolio_images && handyman.portfolio_images.length > 0 && (
               <section>
                 <h2 className="text-2xl font-black text-slate-900 mb-6 flex items-center gap-3">
                   <div className="w-2 h-8 bg-[#F59E0B] rounded-full" />
@@ -157,46 +182,6 @@ export const Profile: React.FC = () => {
                 </div>
               </section>
             )}
-
-            {/* Reviews */}
-            <section>
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                  <div className="w-2 h-8 bg-[#F59E0B] rounded-full" />
-                  Customer Reviews
-                </h2>
-                <button className="text-[#1E3A8A] font-bold text-sm hover:underline">Write a Review</button>
-              </div>
-              <div className="space-y-4">
-                {MOCK_REVIEWS.map(review => (
-                  <div key={review.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center font-bold text-slate-400">
-                          {review.customer_name[0]}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900">{review.customer_name}</p>
-                          <p className="text-xs text-slate-400">{review.created_at}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-0.5">
-                        {[...Array(5)].map((_, i) => (
-                          <Star 
-                            key={i} 
-                            className={cn(
-                              "w-4 h-4", 
-                              i < review.rating ? "text-amber-500 fill-amber-500" : "text-slate-200"
-                            )} 
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-slate-600 leading-relaxed">{review.comment}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
           </div>
 
           {/* Sidebar */}
@@ -210,7 +195,7 @@ export const Profile: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Experience</p>
-                    <p className="font-bold text-slate-900">10+ Years</p>
+                    <p className="font-bold text-slate-900">{handyman.years_of_experience || 0}+ Years</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -219,7 +204,7 @@ export const Profile: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Verification</p>
-                    <p className="font-bold text-slate-900">Identity Verified</p>
+                    <p className="font-bold text-slate-900">{handyman.is_verified ? 'Identity Verified' : 'Pending Verification'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -227,15 +212,15 @@ export const Profile: React.FC = () => {
                     <ImageIcon className="w-6 h-6 text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Portfolio</p>
-                    <p className="font-bold text-slate-900">24 Projects Completed</p>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Service Price</p>
+                    <p className="font-bold text-slate-900">{handyman.price || 0} DH/hr</p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-10 pt-8 border-t border-slate-100">
                 <p className="text-sm text-slate-500 mb-6 leading-relaxed">
-                  Need a custom quote? Message Ahmed directly on WhatsApp for a free consultation.
+                  Need a custom quote? Message {handyman.full_name.split(' ')[0]} directly on WhatsApp for a free consultation.
                 </p>
                 <a 
                   href={whatsappUrl}

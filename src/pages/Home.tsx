@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, MapPin, Zap, Droplets, Hammer, Paintbrush, ArrowLeft, ShieldCheck, Star, Users } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { CategoryCard } from '../components/CategoryCard';
@@ -6,51 +6,8 @@ import { HandymanCard } from '../components/HandymanCard';
 import { Handyman } from '../types';
 import { motion } from 'framer-motion';
 import { translations } from '../locales/ar';
-
-const MOCK_PROS: Handyman[] = [
-  {
-    id: '1',
-    full_name: 'Ahmed El Mansouri',
-    avatar_url: 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=400&h=300&fit=crop',
-    category: 'Electricity',
-    city: 'Casablanca',
-    rating: 4.9,
-    review_count: 124,
-    is_verified: true,
-    subscription_status: 'Premium',
-    bio: 'Certified electrician with 10+ years of experience in residential and commercial wiring.',
-    whatsapp_number: '+212600000000',
-    created_at: '2024-01-01'
-  },
-  {
-    id: '2',
-    full_name: 'Youssef Benali',
-    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop',
-    category: 'Plumbing',
-    city: 'Marrakech',
-    rating: 4.8,
-    review_count: 89,
-    is_verified: true,
-    subscription_status: 'Free',
-    bio: 'Expert plumber specializing in leak detection, bathroom renovations, and emergency repairs.',
-    whatsapp_number: '+212600000001',
-    created_at: '2024-02-01'
-  },
-  {
-    id: '3',
-    full_name: 'Mustapha Alami',
-    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=300&fit=crop',
-    category: 'Construction',
-    city: 'Rabat',
-    rating: 4.7,
-    review_count: 56,
-    is_verified: false,
-    subscription_status: 'Free',
-    bio: 'Professional builder and mason. High-quality construction and renovation services.',
-    whatsapp_number: '+212600000002',
-    created_at: '2024-03-01'
-  }
-];
+import { db } from '../firebase';
+import { collection, query, limit, getDocs, where } from 'firebase/firestore';
 
 const CATEGORIES = [
   { name: 'Electricity', icon: Zap, count: 450 },
@@ -64,10 +21,47 @@ const CITIES = ['Casablanca', 'Marrakech', 'Rabat', 'Tangier', 'Agadir', 'Fes'];
 export const Home: React.FC = () => {
   const [search, setSearch] = useState('');
   const [city, setCity] = useState('');
+  const [featuredPros, setFeaturedPros] = useState<Handyman[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const t = translations.common;
   const hero = translations.hero;
   const cats = translations.categories;
+
+  useEffect(() => {
+    const fetchFeatured = async () => {
+      try {
+        const q = query(collection(db, 'professionals_public'), limit(3));
+        const querySnapshot = await getDocs(q);
+        const pros: Handyman[] = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            full_name: data.fullName || '',
+            avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=400&h=300&fit=crop',
+            category: data.speciality || 'General',
+            city: data.city || '',
+            rating: data.rating || 0,
+            review_count: data.review_count || 0,
+            is_verified: data.isVerified || false,
+            subscription_status: data.subscription_status || 'Free',
+            bio: data.bio || '',
+            whatsapp_number: data.whatsapp_number || '',
+            created_at: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            years_of_experience: data.years_of_experience || 0,
+            price: data.price || 0
+          };
+        });
+        setFeaturedPros(pros);
+      } catch (error) {
+        console.error('Error fetching featured professionals:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFeatured();
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,7 +175,7 @@ export const Home: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {MOCK_PROS.map((pro, idx) => (
+            {featuredPros.map((pro, idx) => (
               <motion.div
                 key={pro.id}
                 initial={{ opacity: 0, scale: 0.95 }}

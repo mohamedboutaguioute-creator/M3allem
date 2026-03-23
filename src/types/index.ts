@@ -15,6 +15,12 @@ export interface Handyman {
   whatsapp_number: string;
   portfolio_images?: string[];
   created_at: string;
+  years_of_experience?: number;
+  skills?: string[];
+  facebook_url?: string;
+  address?: string;
+  zipcode?: string;
+  price?: number;
 }
 
 export interface Review {
