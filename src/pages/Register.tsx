@@ -3,40 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Phone, ShieldCheck, ArrowRight, ArrowLeft, CheckCircle2, Lock, User, Calendar, MapPin, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import { Logo } from '../components/Logo';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { createUserWithEmailAndPassword, sendEmailVerification, signOut } from 'firebase/auth';
 
-type Step = 'signup' | 'phone' | 'otp' | 'profile' | 'success';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
+type Step = 'signup' | 'phone' | 'otp' | 'profile' | 'success' | 'verify';
 
 export const Register: React.FC = () => {
   const [step, setStep] = useState<Step>('signup');
@@ -70,16 +41,33 @@ export const Register: React.FC = () => {
     setError(null);
 
     try {
+      // Check if user is already signed in with this email
+      if (auth.currentUser && auth.currentUser.email === formData.email) {
+        navigate('/dashboard');
+        return;
+      }
+
       // Create the user immediately to check if email is available
-      await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      setStep('phone');
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const user = userCredential.user;
+
+      // Send verification email
+      await sendEmailVerification(user);
+
+      // Sign out immediately so they have to log in after verifying
+      await signOut(auth);
+
+      setStep('verify');
     } catch (err: any) {
-      console.error('Signup Error:', err);
+      console.warn('Signup Attempt Info:', err.code || err.message);
       let message = 'Failed to start registration. Please try again.';
+      
       if (err.code === 'auth/email-already-in-use' || err.message?.includes('email-already-in-use')) {
-        message = 'This email is already registered. Please sign in instead.';
+        message = 'User already exists. Please sign in';
       } else if (err.code === 'auth/invalid-email') {
         message = 'The email address is badly formatted.';
+      } else if (err.code === 'auth/weak-password') {
+        message = 'The password is too weak. Please use at least 6 characters.';
       } else if (err.code === 'auth/invalid-credential') {
         message = 'Invalid registration details. Please check your email and password.';
       }
@@ -120,95 +108,9 @@ export const Register: React.FC = () => {
     }
   };
 
-  const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
-    const errInfo: FirestoreErrorInfo = {
-      error: error instanceof Error ? error.message : String(error),
-      authInfo: {
-        userId: auth.currentUser?.uid,
-        email: auth.currentUser?.email,
-        emailVerified: auth.currentUser?.emailVerified,
-        isAnonymous: auth.currentUser?.isAnonymous,
-        tenantId: auth.currentUser?.tenantId,
-        providerInfo: auth.currentUser?.providerData.map(provider => ({
-          providerId: provider.providerId,
-          displayName: provider.displayName,
-          email: provider.email,
-          photoUrl: provider.photoURL
-        })) || []
-      },
-      operationType,
-      path
-    }
-    console.error('Firestore Error: ', JSON.stringify(errInfo));
-    throw new Error(JSON.stringify(errInfo));
-  }
-
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('No authenticated user found. Please start over.');
-      }
-      const uid = user.uid;
-
-      // 2. Consolidate Data for API/Firestore
-      const consolidatedData = {
-        uid,
-        fullName: formData.fullName,
-        email: formData.email,
-        phone: `+212${formData.phone.replace(/\s/g, '')}`,
-        dob: formData.dob,
-        gender: formData.gender,
-        city: formData.city,
-        createdAt: serverTimestamp(),
-        role: 'professional', // Default role
-        isVerified: false
-      };
-
-      console.log('Final Registration Data:', consolidatedData);
-
-      // 3. Save to Firestore (Atomic Batch)
-      const batch = writeBatch(db);
-      
-      // Public Profile
-      const publicRef = doc(db, 'professionals_public', uid);
-      batch.set(publicRef, {
-        uid,
-        fullName: consolidatedData.fullName,
-        city: consolidatedData.city,
-        whatsapp_number: consolidatedData.phone,
-        createdAt: consolidatedData.createdAt,
-        role: consolidatedData.role,
-        isVerified: consolidatedData.isVerified,
-        speciality: 'General', // Placeholder for later update
-        price: 0 // Placeholder
-      });
-
-      // Private Data
-      const privateRef = doc(db, 'professionals_private', uid);
-      batch.set(privateRef, {
-        email: consolidatedData.email,
-        dob: consolidatedData.dob,
-        gender: consolidatedData.gender,
-      });
-
-      try {
-        await batch.commit();
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, 'batch_commit_registration');
-      }
-      
-      setLoading(false);
-      setStep('success');
-    } catch (err: any) {
-      console.error('Registration Error:', err);
-      setLoading(false);
-      setError(err.message || 'Failed to complete registration. Please try again.');
-    }
+    navigate('/dashboard');
   };
 
   const renderStep = () => {
@@ -276,7 +178,7 @@ export const Register: React.FC = () => {
               {error && (
                 <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium flex flex-col gap-2">
                   <span>{error}</span>
-                  {error.includes('already registered') && (
+                  {error.includes('User already exists') && (
                     <Link to="/auth" className="text-[#1E3A8A] underline font-bold">
                       Sign In here
                     </Link>
@@ -457,6 +359,28 @@ export const Register: React.FC = () => {
                 {!loading && <ShieldCheck className="w-5 h-5" />}
               </button>
             </form>
+          </motion.div>
+        );
+      case 'verify':
+        return (
+          <motion.div
+            key="verify"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center space-y-6 py-8"
+          >
+            <div className="w-20 h-20 bg-blue-100 text-[#1E3A8A] rounded-full flex items-center justify-center mx-auto mb-6">
+              <Mail className="w-12 h-12" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-3xl font-black text-slate-900">Verify your email</h2>
+              <p className="text-slate-500">
+                We have sent you a verification email to <span className="font-bold text-slate-900">{formData.email}</span>. Please verify it and log in.
+              </p>
+            </div>
+            <button onClick={() => navigate('/auth')} className="btn-primary w-full py-4 text-lg">
+              Login
+            </button>
           </motion.div>
         );
       case 'success':

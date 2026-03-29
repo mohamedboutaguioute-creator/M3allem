@@ -1,29 +1,125 @@
 {
   "entities": {
-    "Professional": {
-      "title": "Professional",
-      "description": "A professional service provider on the platform.",
+    "User": {
+      "title": "User",
+      "description": "The user profile information.",
       "type": "object",
       "properties": {
-        "uid": { "type": "string", "description": "The unique identifier for the professional." },
-        "fullName": { "type": "string", "description": "The full name of the professional." },
-        "email": { "type": "string", "format": "email", "description": "The email address of the professional." },
-        "phone": { "type": "string", "description": "The phone number of the professional." },
-        "address": { "type": "string", "description": "The physical address of the professional." },
-        "zipcode": { "type": "string", "description": "The zip code of the professional's location." },
-        "speciality": { "type": "string", "description": "The professional's area of expertise." },
-        "price": { "type": "number", "description": "The hourly rate or service price." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "The date and time the profile was created." },
-        "role": { "type": "string", "enum": ["professional"], "description": "The role of the user." },
-        "isVerified": { "type": "boolean", "description": "Whether the professional has been verified by an admin." }
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "plan": { "type": "string", "enum": ["Free", "Pro", "Enterprise"] },
+        "role": { "type": "string", "enum": ["client", "pro", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "avatar_url": { "type": "string" },
+        "category": { "type": "string" },
+        "city": { "type": "string" },
+        "rating": { "type": "number" },
+        "review_count": { "type": "number" },
+        "is_verified": { "type": "boolean" },
+        "subscription_status": { "type": "string" },
+        "bio": { "type": "string" },
+        "whatsapp_number": { "type": "string" },
+        "phone_number": { "type": "string" },
+        "portfolio_images": { "type": "array", "items": { "type": "string" } },
+        "years_of_experience": { "type": "number" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "facebook_url": { "type": "string" },
+        "address": { "type": "string" },
+        "zipcode": { "type": "string" },
+        "price": { "type": "number" },
+        "is_searchable": { "type": "boolean" },
+        "isProfileComplete": { "type": "boolean" },
+        "isPublished": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "inactive", "pending"] },
+        "search_keywords": { "type": "array", "items": { "type": "string" } }
       },
-      "required": ["uid", "fullName", "email", "phone", "address", "zipcode", "speciality", "price", "createdAt", "role", "isVerified"]
+      "required": ["displayName", "email", "plan", "role", "createdAt"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A review left by a user for an artisan.",
+      "type": "object",
+      "properties": {
+        "artisanId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["artisanId", "userId", "rating", "comment", "timestamp"]
+    },
+    "Folder": {
+      "title": "Folder",
+      "description": "A folder to organize files.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "createdAt"]
+    },
+    "File": {
+      "title": "File",
+      "description": "Metadata for a file.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "folderId": { "type": "string" },
+        "size": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "size", "createdAt"]
+    },
+    "Note": {
+      "title": "Note",
+      "description": "A personal note.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "createdAt"]
+    },
+    "TeamMember": {
+      "title": "Team Member",
+      "description": "A member of the user's team.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "createdAt"]
     }
   },
   "firestore": {
-    "/professionals/{professionalId}": {
-      "schema": "Professional",
-      "description": "Collection of professional service providers."
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile document."
+    },
+    "/users/{uid}/folders/{folderId}": {
+      "schema": "Folder",
+      "description": "Folders created by the user."
+    },
+    "/users/{uid}/files/{fileId}": {
+      "schema": "File",
+      "description": "Files created by the user."
+    },
+    "/users/{uid}/notes/{noteId}": {
+      "schema": "Note",
+      "description": "Notes created by the user."
+    },
+    "/users/{uid}/teamMembers/{memberId}": {
+      "schema": "TeamMember",
+      "description": "Team members added by the user."
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Public reviews for artisans."
     }
   }
 }

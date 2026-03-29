@@ -5,104 +5,190 @@ service cloud.firestore {
     // Assumed Data Model
     // ===============================================================
     //
-    // Collection: professionals_public
-    // Document ID: {professionalId} (matches auth.uid)
+    // Collection: users
+    // Document ID: {uid}
     // Fields:
-    //   - uid: string (required)
-    //   - fullName: string (required, 1-100 chars)
-    //   - speciality: string (required, enum)
-    //   - price: number (required, positive)
-    //   - city: string (required)
-    //   - createdAt: timestamp (required)
-    //   - isVerified: bool (required)
-    //   - role: string (required, enum: ['professional'])
-    //   - whatsapp_number: string (required) - Public business contact
-    //
-    // Collection: professionals_private
-    // Document ID: {professionalId} (matches auth.uid)
-    // Fields:
+    //   - displayName: string (required)
     //   - email: string (required, email format)
-    //   - dob: string (required)
-    //   - gender: string (required, enum: ['male', 'female', 'other'])
+    //   - plan: string (required, enum: Free, Pro, Enterprise)
+    //   - createdAt: string (required, date-time format)
+    //
+    // Subcollection: users/{uid}/folders
+    // Document ID: {folderId}
+    // Fields:
+    //   - name: string (required)
+    //   - createdAt: string (required)
+    //
+    // Subcollection: users/{uid}/files
+    // Document ID: {fileId}
+    // Fields:
+    //   - name: string (required)
+    //   - size: string (required)
+    //   - folderId: string (optional)
+    //   - createdAt: string (required)
+    //
+    // Subcollection: users/{uid}/notes
+    // Document ID: {noteId}
+    // Fields:
+    //   - title: string (required)
+    //   - content: string (optional)
+    //   - createdAt: string (required)
+    //
+    // Subcollection: users/{uid}/teamMembers
+    // Document ID: {memberId}
+    // Fields:
+    //   - name: string (required)
+    //   - role: string (optional)
+    //   - createdAt: string (required)
+    //
+    // Collection: reviews
+    // Document ID: {reviewId}
+    // Fields:
+    //   - artisanId: string (required)
+    //   - userId: string (required)
+    //   - userName: string (optional)
+    //   - userAvatar: string (optional)
+    //   - rating: number (required, 1-5)
+    //   - comment: string (required)
+    //   - imageUrl: string (optional)
+    //   - timestamp: string (required)
     //
     // ===============================================================
 
-    // ===============================================================
     // Helper Functions
-    // ===============================================================
     function isAuthenticated() {
       return request.auth != null;
     }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
     }
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "mohamedboutaguioute@gmail.com" && request.auth.token.email_verified == true));
+        (request.auth.token.email == "mohamedboutaguioute@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
     }
 
     function isValidEmail(email) {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
-    function isRecent(time) {
-      return time > request.time - duration.value(5, 'm') && time <= request.time;
-    }
-
-    function isValidProfessionalPublic(data) {
-      let validSpecialities = ['electrician', 'plumber', 'carpenter', 'painter', 'hvac', 'mason', 'General'];
-      return data.keys().hasAll(['uid', 'fullName', 'speciality', 'price', 'city', 'createdAt', 'isVerified', 'role', 'whatsapp_number']) &&
-             data.uid == request.auth.uid &&
-             data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100 &&
-             data.speciality in validSpecialities &&
-             data.price is number && data.price >= 0 &&
-             data.city is string &&
-             data.role == 'professional' &&
-             data.isVerified is bool &&
-             data.createdAt is timestamp &&
-             data.whatsapp_number is string &&
-             (request.method == 'create' ? isRecent(data.createdAt) : true);
-    }
-
-    function isValidProfessionalPrivate(data) {
-      return data.keys().hasAll(['email', 'dob', 'gender']) &&
+    // Domain Validators
+    function isValidUser(data) {
+      return data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
              isValidEmail(data.email) &&
-             data.dob is string &&
-             data.gender in ['male', 'female', 'other'];
+             data.plan in ['Free', 'Pro', 'Enterprise'] &&
+             data.role in ['client', 'pro', 'admin'] &&
+             data.createdAt is string &&
+             (!('avatar_url' in data) || data.avatar_url is string) &&
+             (!('category' in data) || data.category is string) &&
+             (!('city' in data) || data.city is string) &&
+             (!('rating' in data) || data.rating is number) &&
+             (!('review_count' in data) || data.review_count is number) &&
+             (!('is_verified' in data) || data.is_verified is bool) &&
+             (!('is_searchable' in data) || data.is_searchable is bool) &&
+             (!('isProfileComplete' in data) || data.isProfileComplete is bool) &&
+             (!('isPublished' in data) || data.isPublished is bool) &&
+             (!('status' in data) || data.status in ['active', 'inactive', 'pending']) &&
+             (!('search_keywords' in data) || data.search_keywords is list) &&
+             (!('subscription_status' in data) || data.subscription_status is string) &&
+             (!('bio' in data) || data.bio is string) &&
+             (!('whatsapp_number' in data) || data.whatsapp_number is string) &&
+             (!('phone_number' in data) || data.phone_number is string) &&
+             (!('portfolio_images' in data) || data.portfolio_images is list) &&
+             (!('years_of_experience' in data) || data.years_of_experience is number) &&
+             (!('skills' in data) || data.skills is list) &&
+             (!('facebook_url' in data) || data.facebook_url is string) &&
+             (!('address' in data) || data.address is string) &&
+             (!('zipcode' in data) || data.zipcode is string) &&
+             (!('price' in data) || data.price is number);
     }
 
-    // ===============================================================
-    // Collection Rules
-    // ===============================================================
+    function isValidFolder(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.createdAt is string;
+    }
 
-    match /professionals_public/{professionalId} {
-      // Public can read professional profiles
+    function isValidFile(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 255 &&
+             data.size is string &&
+             (!('folderId' in data) || data.folderId is string) &&
+             data.createdAt is string;
+    }
+
+    function isValidNote(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() < 255 &&
+             (!('content' in data) || data.content is string) &&
+             data.createdAt is string;
+    }
+
+    function isValidTeamMember(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('role' in data) || data.role is string) &&
+             data.createdAt is string;
+    }
+
+    function isValidReview(data) {
+      return data.artisanId is string &&
+             data.userId is string &&
+             (!('userName' in data) || data.userName is string) &&
+             (!('userAvatar' in data) || data.userAvatar is string) &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+             data.comment is string && data.comment.size() > 0 && data.comment.size() < 2000 &&
+             (!('imageUrl' in data) || data.imageUrl is string) &&
+             data.timestamp is string;
+    }
+
+    // Rules
+    match /users/{uid} {
+      allow read: if (resource != null && (
+        resource.data.get('is_searchable', false) == true || 
+        resource.data.get('isProfileComplete', false) == true || 
+        resource.data.get('isPublished', false) == true
+      )) || isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && isValidUser(request.resource.data) && request.resource.data.get('role', '') != 'admin';
+      allow update: if (isOwner(uid) && isValidUser(request.resource.data) && request.resource.data.get('role', '') == resource.data.get('role', '')) || isAdmin();
+      
+      match /folders/{folderId} {
+        allow get, list: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidFolder(request.resource.data);
+        allow update: if (isOwner(uid) && isValidFolder(request.resource.data)) || isAdmin();
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+      
+      match /files/{fileId} {
+        allow get, list: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidFile(request.resource.data);
+        allow update: if (isOwner(uid) && isValidFile(request.resource.data)) || isAdmin();
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+      
+      match /notes/{noteId} {
+        allow get, list: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidNote(request.resource.data);
+        allow update: if (isOwner(uid) && isValidNote(request.resource.data)) || isAdmin();
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+      
+      match /teamMembers/{memberId} {
+        allow get, list: if isOwner(uid) || isAdmin();
+        allow create: if isOwner(uid) && isValidTeamMember(request.resource.data);
+        allow update: if (isOwner(uid) && isValidTeamMember(request.resource.data)) || isAdmin();
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    match /reviews/{reviewId} {
       allow read: if true;
-      
-      allow create: if isOwner(professionalId) && 
-                      isValidProfessionalPublic(request.resource.data) && 
-                      request.resource.data.isVerified == false;
-      
-      allow update: if isOwner(professionalId) && 
-                      isValidProfessionalPublic(request.resource.data) && 
-                      request.resource.data.isVerified == resource.data.isVerified;
-      
-      allow delete: if isAdmin();
-    }
-
-    match /professionals_private/{professionalId} {
-      // ONLY owner or admin can read private data
-      allow read: if isOwner(professionalId) || isAdmin();
-      
-      allow write: if isOwner(professionalId) && isValidProfessionalPrivate(request.resource.data);
-    }
-
-    // Default deny
-    match /{path=**} {
-      allow read, write: if false;
+      allow create: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.uid && 
+                    isValidReview(request.resource.data);
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid && isValidReview(request.resource.data)) || isAdmin();
+      allow delete: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isAdmin();
     }
   }
 }

@@ -4,57 +4,129 @@ import { useNavigate, Link } from 'react-router-dom';
 import { CategoryCard } from '../components/CategoryCard';
 import { HandymanCard } from '../components/HandymanCard';
 import { Handyman } from '../types';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { translations } from '../locales/ar';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { collection, query, limit, getDocs, where } from 'firebase/firestore';
+
+const SPECIALTIES = [
+  { ar: "رصاص", fr: "Plombier", value: "Plumbing" },
+  { ar: "كهربائي", fr: "Électricien", value: "Electricity" },
+  { ar: "جباص", fr: "Plâtrier", value: "Plastering" },
+  { ar: "صباغ", fr: "Peintre", value: "Painting" },
+  { ar: "نجار", fr: "Menuisier", value: "Carpentry" },
+  { ar: "بناء", fr: "Maçon", value: "Construction" },
+  { ar: "معلم ألمنيوم", fr: "Menuisier Aluminium", value: "Aluminum" },
+  { ar: "زلايجي", fr: "Carreleur", value: "Tiling" }
+];
 
 const CATEGORIES = [
   { name: 'Electricity', icon: Zap, count: 450 },
   { name: 'Plumbing', icon: Droplets, count: 380 },
   { name: 'Construction', icon: Hammer, count: 290 },
   { name: 'Painting', icon: Paintbrush, count: 210 },
+  { name: 'Tiling', icon: Hammer, count: 180 },
 ];
 
-const CITIES = ['Casablanca', 'Marrakech', 'Rabat', 'Tangier', 'Agadir', 'Fes'];
+const CITIES = [
+  'Casablanca', 'Rabat', 'Marrakech', 'Tangier', 'Agadir', 'Fes', 'Meknes', 
+  'Oujda', 'Kenitra', 'Tetouan', 'Safi', 'Mohammedia', 'Khouribga', 'El Jadida', 
+  'Beni Mellal', 'Nador', 'Taza', 'Settat', 'Larache', 'Ksar El Kebir', 'Guelmim', 
+  'Khemisset', 'Berrechid', 'Ouarzazate', 'Tiznit', 'Taroudant', 'Essaouira'
+];
 
 export const Home: React.FC = () => {
   const [search, setSearch] = useState('');
   const [city, setCity] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [featuredPros, setFeaturedPros] = useState<Handyman[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<typeof SPECIALTIES>(SPECIALTIES);
   const navigate = useNavigate();
   const t = translations.common;
   const hero = translations.hero;
   const cats = translations.categories;
 
   useEffect(() => {
+    if (search.trim().length > 0) {
+      const filtered = SPECIALTIES.filter(s => 
+        s.ar.toLowerCase().includes(search.toLowerCase()) || 
+        s.fr.toLowerCase().includes(search.toLowerCase())
+      );
+      setSuggestions(filtered);
+      // Only show if there are matches
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setSuggestions(SPECIALTIES);
+      // Don't automatically show if empty, wait for focus
+    }
+  }, [search]);
+
+  const highlightText = (text: string, query: string) => {
+    if (!query) return text;
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <span>
+        {parts.map((part, i) => 
+          part.toLowerCase() === query.toLowerCase() ? (
+            <span key={i} className="bg-amber-100 text-amber-900 font-black">{part}</span>
+          ) : (
+            part
+          )
+        )}
+      </span>
+    );
+  };
+
+  useEffect(() => {
     const fetchFeatured = async () => {
       try {
-        const q = query(collection(db, 'professionals_public'), limit(3));
+        const q = query(
+          collection(db, 'users'), 
+          where('isPublished', '==', true),
+          limit(6)
+        );
         const querySnapshot = await getDocs(q);
-        const pros: Handyman[] = querySnapshot.docs.map(doc => {
+        const pros = querySnapshot.docs.map(doc => {
           const data = doc.data();
           return {
             id: doc.id,
-            full_name: data.fullName || '',
-            avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=400&h=300&fit=crop',
-            category: data.speciality || 'General',
+            full_name: data.displayName || '',
+            email: data.email || '',
+            avatar_url: data.avatar_url || '',
+            category: data.category || 'Electricity',
             city: data.city || '',
             rating: data.rating || 0,
             review_count: data.review_count || 0,
-            is_verified: data.isVerified || false,
+            is_verified: data.is_verified || false,
+            is_searchable: data.is_searchable || false,
+            isProfileComplete: data.isProfileComplete || false,
             subscription_status: data.subscription_status || 'Free',
             bio: data.bio || '',
             whatsapp_number: data.whatsapp_number || '',
-            created_at: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+            phone_number: data.phone_number || '',
+            created_at: data.createdAt || '',
             years_of_experience: data.years_of_experience || 0,
+            skills: data.skills || [],
+            facebook_url: data.facebook_url || '',
+            address: data.address || '',
+            zipcode: data.zipcode || '',
             price: data.price || 0
-          };
+          } as Handyman;
         });
-        setFeaturedPros(pros);
+
+        // Sort by verified first, then by rating
+        const sortedPros = pros.sort((a, b) => {
+          if (a.is_verified !== b.is_verified) {
+            return a.is_verified ? -1 : 1;
+          }
+          return (b.rating || 0) - (a.rating || 0);
+        });
+
+        setFeaturedPros(sortedPros);
       } catch (error) {
-        console.error('Error fetching featured professionals:', error);
+        console.error('Error fetching featured pros:', error);
       } finally {
         setLoading(false);
       }
@@ -65,13 +137,25 @@ export const Home: React.FC = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate(`/directory?q=${search}&city=${city}`);
+    if (selectedCategory) {
+      navigate(`/directory?cat=${selectedCategory}&city=${city}`);
+    } else {
+      // Try to find a matching specialty if they just typed it
+      const match = SPECIALTIES.find(s => 
+        s.ar === search || s.fr === search
+      );
+      if (match) {
+        navigate(`/directory?cat=${match.value}&city=${city}`);
+      } else {
+        navigate(`/directory?q=${search}&city=${city}`);
+      }
+    }
   };
 
   return (
     <div className="flex flex-col min-h-screen text-right">
       {/* Hero Section */}
-      <section className="relative pt-20 pb-32 overflow-hidden bg-slate-50">
+      <section className="relative pt-20 pb-32 bg-slate-50">
         <div className="absolute top-0 left-0 w-1/2 h-full bg-[#1E3A8A]/5 skew-x-12 transform -translate-x-1/4" />
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
@@ -93,41 +177,100 @@ export const Home: React.FC = () => {
             </motion.div>
 
             {/* Search Bar */}
-            <motion.form 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              onSubmit={handleSearch}
-              className="bg-white p-2 rounded-2xl shadow-xl shadow-slate-200/50 flex flex-col md:flex-row gap-2 border border-slate-100"
-            >
-              <div className="flex-1 flex items-center px-4 gap-3 border-b md:border-b-0 md:border-l border-slate-100 py-3 md:py-0">
-                <Search className="w-5 h-5 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder={hero.placeholder} 
-                  className="w-full bg-transparent border-none focus:ring-0 text-slate-900 font-bold placeholder:text-slate-400 text-right"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <div className="flex-1 flex items-center px-4 gap-3 py-3 md:py-0">
-                <MapPin className="w-5 h-5 text-slate-400" />
-                <select 
-                  className="w-full bg-transparent border-none focus:ring-0 text-slate-900 font-bold appearance-none cursor-pointer text-right"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                >
-                  <option value="">{t.allCities}</option>
-                  {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <button 
-                type="submit"
-                className="bg-[#1E3A8A] hover:bg-[#162a63] text-white px-8 py-4 rounded-xl font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            <div className="relative z-50">
+              <motion.form 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                onSubmit={handleSearch}
+                className="bg-white p-2 rounded-2xl shadow-xl shadow-slate-200/50 flex flex-col md:flex-row gap-2 border border-slate-100 relative z-20"
               >
-                {t.search} <ArrowLeft className="w-4 h-4" />
-              </button>
-            </motion.form>
+                <div className="flex-1 flex items-center px-4 gap-3 border-b md:border-b-0 md:border-l border-slate-100 py-3 md:py-0">
+                  <Search className="w-5 h-5 text-slate-400" />
+                  <input 
+                    type="text" 
+                    placeholder={hero.placeholder} 
+                    className="w-full bg-transparent border-none focus:ring-0 text-slate-900 font-bold placeholder:text-slate-400 text-right"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setSelectedCategory(null);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                  />
+                </div>
+                <div className="flex-1 flex items-center px-4 gap-3 py-3 md:py-0">
+                  <MapPin className="w-5 h-5 text-slate-400" />
+                  <select 
+                    className="w-full bg-transparent border-none focus:ring-0 text-slate-900 font-bold appearance-none cursor-pointer text-right"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                  >
+                    <option value="">{t.allCities}</option>
+                    {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <button 
+                  type="submit"
+                  className="bg-[#1E3A8A] hover:bg-[#162a63] text-white px-8 py-4 rounded-xl font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                >
+                  {t.search} <ArrowLeft className="w-4 h-4" />
+                </button>
+              </motion.form>
+
+              {/* Suggestions Dropdown */}
+              <AnimatePresence>
+                {showSuggestions && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[60]"
+                  >
+                    <div className="p-2 max-h-[400px] overflow-y-auto">
+                      {suggestions.length > 0 ? suggestions.map((s, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setSearch(s.ar);
+                            setSelectedCategory(s.value);
+                            setShowSuggestions(false);
+                          }}
+                          className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-xl transition-all text-right group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md group-hover:bg-amber-100 group-hover:text-amber-700 transition-colors uppercase tracking-wider">
+                              {highlightText(s.fr, search)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-slate-900 font-bold">
+                              {highlightText(s.ar, search)}
+                            </span>
+                            <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center group-hover:bg-amber-50 transition-colors">
+                              <Search className="w-4 h-4 text-slate-400 group-hover:text-amber-600" />
+                            </div>
+                          </div>
+                        </button>
+                      )) : (
+                        <div className="p-8 text-center">
+                          <p className="text-slate-400 font-bold">ما لقينا والو...</p>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Click outside overlay */}
+              {showSuggestions && (
+                <div 
+                  className="fixed inset-0 z-0" 
+                  onClick={() => setShowSuggestions(false)}
+                />
+              )}
+            </div>
           </div>
         </div>
       </section>

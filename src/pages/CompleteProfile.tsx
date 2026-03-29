@@ -3,8 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Mail, Phone, MapPin, Hash, Briefcase, DollarSign, ShieldCheck, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { auth, db } from '../firebase';
-import { doc, setDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../firebase';
 
 export const CompleteProfile: React.FC = () => {
   const navigate = useNavigate();
@@ -36,42 +36,50 @@ export const CompleteProfile: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    const uid = auth.currentUser.uid;
-    const batch = writeBatch(db);
-
     try {
-      // Public Profile
-      const publicRef = doc(db, 'professionals_public', uid);
-      batch.set(publicRef, {
-        uid,
-        fullName: formData.fullName,
-        speciality: formData.speciality,
-        price: Number(formData.price),
-        city: formData.city,
-        whatsapp_number: formData.phone,
-        createdAt: serverTimestamp(),
-        role: 'professional',
-        isVerified: false
-      });
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      
+      // Generate search keywords
+      const keywords = new Set<string>();
+      if (formData.fullName) {
+        formData.fullName.toLowerCase().split(' ').forEach(word => {
+          if (word.length > 1) keywords.add(word);
+        });
+      }
+      if (formData.speciality) keywords.add(formData.speciality.toLowerCase());
+      if (formData.city) keywords.add(formData.city.toLowerCase());
 
-      // Private Data
-      const privateRef = doc(db, 'professionals_private', uid);
-      batch.set(privateRef, {
+      const updatePayload = {
+        displayName: formData.fullName,
         email: formData.email,
+        phone_number: formData.phone,
         address: formData.address,
-        zipcode: formData.zipcode
-      });
+        zipcode: formData.zipcode,
+        city: formData.city,
+        category: formData.speciality,
+        price: Number(formData.price),
+        role: 'pro',
+        isPublished: true,
+        status: 'active',
+        is_searchable: true, // Also set this for backward compatibility with previous logic
+        isProfileComplete: false, // Will be true once bio and portfolio are added in dashboard
+        search_keywords: Array.from(keywords),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        rating: 0,
+        review_count: 0,
+        is_verified: false,
+        subscription_status: 'Free',
+        bio: '', // Empty for now
+        portfolio_images: []
+      };
 
-      await batch.commit();
-      navigate('/');
+      await setDoc(userRef, updatePayload, { merge: true });
+      navigate('/dashboard');
     } catch (err: any) {
       console.error('Error saving profile:', err);
+      handleFirestoreError(err, OperationType.WRITE, `users/${auth.currentUser.uid}`);
       setLoading(false);
-      
-      if (err.code === 'permission-denied') {
-        handleFirestoreError(err, OperationType.WRITE, `professionals_public/${uid}`);
-      }
-      
       setError(err.message || 'Failed to save profile. Please try again.');
     }
   };
@@ -163,11 +171,32 @@ export const CompleteProfile: React.FC = () => {
                   >
                     <option value="">Select City</option>
                     <option value="Casablanca">Casablanca</option>
-                    <option value="Marrakech">Marrakech</option>
                     <option value="Rabat">Rabat</option>
+                    <option value="Marrakech">Marrakech</option>
                     <option value="Tangier">Tangier</option>
                     <option value="Agadir">Agadir</option>
                     <option value="Fes">Fes</option>
+                    <option value="Meknes">Meknes</option>
+                    <option value="Oujda">Oujda</option>
+                    <option value="Kenitra">Kenitra</option>
+                    <option value="Tetouan">Tetouan</option>
+                    <option value="Safi">Safi</option>
+                    <option value="Mohammedia">Mohammedia</option>
+                    <option value="Khouribga">Khouribga</option>
+                    <option value="El Jadida">El Jadida</option>
+                    <option value="Beni Mellal">Beni Mellal</option>
+                    <option value="Nador">Nador</option>
+                    <option value="Taza">Taza</option>
+                    <option value="Settat">Settat</option>
+                    <option value="Larache">Larache</option>
+                    <option value="Ksar El Kebir">Ksar El Kebir</option>
+                    <option value="Guelmim">Guelmim</option>
+                    <option value="Khemisset">Khemisset</option>
+                    <option value="Berrechid">Berrechid</option>
+                    <option value="Ouarzazate">Ouarzazate</option>
+                    <option value="Tiznit">Tiznit</option>
+                    <option value="Taroudant">Taroudant</option>
+                    <option value="Essaouira">Essaouira</option>
                   </select>
                 </div>
               </div>
@@ -223,12 +252,14 @@ export const CompleteProfile: React.FC = () => {
                     className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-transparent rounded-2xl focus:border-[#1E3A8A] focus:bg-white transition-all outline-none appearance-none"
                   >
                     <option value="">Select Speciality</option>
-                    <option value="electrician">Electrician</option>
-                    <option value="plumber">Plumber</option>
-                    <option value="carpenter">Carpenter</option>
-                    <option value="painter">Painter</option>
-                    <option value="hvac">HVAC Technician</option>
-                    <option value="mason">Mason</option>
+                    <option value="Electricity">Electrician</option>
+                    <option value="Plumbing">Plumber</option>
+                    <option value="Carpentry">Carpenter</option>
+                    <option value="Painting">Painter</option>
+                    <option value="Construction">Mason</option>
+                    <option value="Plastering">Plasterer</option>
+                    <option value="Aluminum">Aluminum Worker</option>
+                    <option value="Tiling">Tiler</option>
                   </select>
                 </div>
               </div>

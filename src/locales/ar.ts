@@ -25,6 +25,9 @@ export const translations = {
     Construction: "البناء (بناي)",
     Painting: "الصباغة",
     Carpentry: "النجارة",
+    Plastering: "الجبص (جباص)",
+    Aluminum: "الألمنيوم",
+    Tiling: "الزليج (زلايجي)",
   },
   footer: {
     aboutText: "المنصة رقم 1 فالمغرب باش تلقى أحسن الحريفية. جودة، ثقة، ومعقول حتى لعندك.",

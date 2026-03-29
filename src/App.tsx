@@ -6,6 +6,7 @@ import { Home } from './pages/Home';
 import { Directory } from './pages/Directory';
 import { Profile } from './pages/Profile';
 import { ProfessionalProfile } from './pages/ProfessionalProfile';
+import ProfileDemo from './pages/ProfileDemo';
 import { Auth } from './pages/Auth';
 import { Register } from './pages/Register';
 import { CompleteProfile } from './pages/CompleteProfile';
@@ -37,6 +38,7 @@ export default function App() {
                       <Route path="/auth" element={<Auth />} />
                       <Route path="/register" element={<Register />} />
                       <Route path="/complete-profile" element={<CompleteProfile />} />
+                      <Route path="/profile-demo" element={<ProfileDemo />} />
                     </Routes>
                   </main>
                   <Footer />

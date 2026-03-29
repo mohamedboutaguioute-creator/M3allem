@@ -4,7 +4,7 @@ import { User, Briefcase, Mail, Lock, Phone, MapPin, Camera, ArrowRight, ShieldC
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { auth } from '../firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { Logo } from '../components/Logo';
 
 export const Auth: React.FC = () => {
@@ -13,6 +13,7 @@ export const Auth: React.FC = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showVerifyMessage, setShowVerifyMessage] = useState(false);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -32,18 +33,28 @@ export const Auth: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setShowVerifyMessage(false);
     try {
-      await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      navigate('/');
+      const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+      const user = userCredential.user;
+
+      if (!user.emailVerified) {
+        await signOut(auth);
+        setShowVerifyMessage(true);
+        return;
+      }
+
+      navigate('/dashboard');
     } catch (err: any) {
-      console.error('Sign In Error:', err);
+      console.warn('Sign In Attempt Info:', err.code || err.message);
       let message = 'Failed to sign in. Please check your credentials.';
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        message = 'Incorrect email or password. Please try again or reset your password.';
-      } else if (err.code === 'auth/wrong-password') {
-        message = 'Incorrect password. Please try again.';
+      
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+        message = 'Email or password is incorrect';
       } else if (err.code === 'auth/too-many-requests') {
         message = 'Too many failed attempts. Please try again later.';
+      } else if (err.code === 'auth/user-disabled') {
+        message = 'This account has been disabled. Please contact support.';
       }
       setError(message);
     } finally {
@@ -94,7 +105,27 @@ export const Auth: React.FC = () => {
               </div>
             ) : (
               /* Simple Customer Login */
-              <form onSubmit={handleSignIn} className="space-y-6">
+              showVerifyMessage ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-center space-y-6 py-8"
+                >
+                  <div className="w-20 h-20 bg-blue-100 text-[#1E3A8A] rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Mail className="w-12 h-12" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-3xl font-black text-slate-900">Verify your email</h2>
+                    <p className="text-slate-500">
+                      We have sent you a verification email to <span className="font-bold text-slate-900">{formData.email}</span>. Please verify it and log in.
+                    </p>
+                  </div>
+                  <button onClick={() => setShowVerifyMessage(false)} className="btn-primary w-full py-4 text-lg">
+                    Login
+                  </button>
+                </motion.div>
+              ) : (
+                <form onSubmit={handleSignIn} className="space-y-6">
                 {error && (
                   <div className="p-4 bg-red-50 border border-red-100 rounded-2xl text-sm text-red-600 font-medium">
                     {error}
@@ -149,9 +180,10 @@ export const Auth: React.FC = () => {
                   </p>
                 </div>
               </form>
-            )}
-          </div>
+            )
+          )}
         </div>
+      </div>
 
         <div className="mt-8 text-center">
           <Link 
